@@ -1,0 +1,89 @@
+//Compilar y ejecutar aplicación
+dotnet run --project Inventario.Api
+
+//Instalar Paquete NuGet(EF Core + SQLITE)
+dotnet add Inventario.Api package Microsoft.EntityFrameworkCore
+dotnet add Inventario.Api package Microsoft.EntityFrameworkCore.Sqlite
+dotnet add Inventario.Api package Microsoft.EntityFrameworkCore.Tools
+
+//Instalar herrramienta de migraciones (donet-ef)
+dotnet tool list -g //-> Si sale vacío no pasa nada
+dotnet nuget locals all --clear
+dotnet tool install --global dotnet-ef
+
+Instala EF Core
+dotnet add .\Inventario.Api\Inventario.Api.csproj package Microsoft.EntityFrameworkCore --version 8.0.0
+dotnet add .\Inventario.Api\Inventario.Api.csproj package Microsoft.EntityFrameworkCore.Sqlite --version 8.0.0
+dotnet add .\Inventario.Api\Inventario.Api.csproj package Microsoft.EntityFrameworkCore.Tools --version 8.0.0
+dotnet restore
+dotnet list .\Inventario.Api\Inventario.Api.csproj package
+
+
+//Crear primera migracion
+dotnet build Inventario.Api
+dotnet ef migrations add InitialCreate --project Inventario.Api
+
+2) Cómo funciona el motor de escaneo (lógica)
+
+Para cada IP del CIDR:
+
+Detección básica
+
+Ping (ICMP) o, mejor, test TCP a puertos comunes (más fiable en entornos donde ICMP está bloqueado).
+
+Si “hay algo”, intentas identificar:
+
+fabricante/modelo/firmware por HTTP (Axis VAPIX es ideal para empezar).
+
+Pruebas credenciales:
+
+Coges credenciales activas de la instalación (filtradas por Scope + General, ordenadas por Priority).
+
+Intentas autenticar y, si funciona:
+
+rellenas Manufacturer/Model/Firmware
+
+guardas CredentialId y CredentialUsername en el resultado
+
+persistes para ese activo el PreferredCredentialId.
+
+3) Persistencia: guardar la credencial preferida
+
+Cuando una credencial funciona, lo ideal es guardar en tu tabla de activos (Sistema/Dispositivo):
+
+IP / MAC / Serial…
+
+PreferredCredentialId = la que autenticó
+
+Así en próximos escaneos:
+
+pruebas primero la “preferida”
+
+si falla, recorres el resto
+
+4) Endpoint propuesto
+POST /api/scans
+
+Body: StartScanRequest
+
+Respuesta: ScanResponseDto
+
+En una primera versión puede ser sin jobs ni colas: el escaneo se ejecuta y devuelve al terminar (para rangos pequeños tipo /24 funciona). Luego, si quieres, lo evolucionamos a scanId + polling/SignalR.
+
+5) Siguiente paso concreto (sin hacerlo enorme)
+
+Para avanzar con poco riesgo, te propongo este orden:
+
+Crear los DTOs anteriores (StartScanRequest, ScanResponseDto, ScanDeviceResultDto)
+
+Crear ScansController con un escaneo “mínimo”:
+
+expandir CIDR → lista de IPs
+
+check puerto 80/443 (TCP connect con timeout corto)
+
+si responde, intentar Axis VAPIX con Basic Auth usando tus credenciales (primera integración real)
+
+devolver resultados
+
+Persistencia (en el siguiente paso) de PreferredCredentialId
