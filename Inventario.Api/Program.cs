@@ -29,6 +29,9 @@ builder.Services.AddHttpClient<Inventario.Api.Services.Scan.AxisVapixClient>()
             HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
     });
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.AxisVapixProtocolScanner>();
+builder.Services.AddSingleton<Inventario.Api.Services.Scan.OnvifDiscoveryService>();
+builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.OnvifDiscoveryProtocolScanner>();
+
 
 var app = builder.Build();
 
