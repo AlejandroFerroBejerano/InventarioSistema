@@ -28,7 +28,7 @@ builder.Services.AddHttpClient<Inventario.Api.Services.Scan.AxisVapixClient>()
         ServerCertificateCustomValidationCallback =
             HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
     });
-
+builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.AxisVapixProtocolScanner>();
 
 var app = builder.Build();
 

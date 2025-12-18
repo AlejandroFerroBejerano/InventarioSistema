@@ -11,13 +11,17 @@ public class ScanHostResultDto
     public SsdpInfoDto? Ssdp { get; set; }
 
     public string Status { get; set; } = "Unknown"; // Found | NoPorts | SsdpOnly | Unknown
-    
+
     public string? Manufacturer { get; set; }
     public string? Model { get; set; }
     public string? Firmware { get; set; }
 
     public int? WebPort { get; set; }
+    public int? SdkPort { get; set; }
 
     public int? CredentialId { get; set; }
     public string? CredentialUsername { get; set; }
+    
+    //Protocol te ayuda a saber con qué “driver” ha funcionado
+    public string? Protocol { get; set; }
 }
