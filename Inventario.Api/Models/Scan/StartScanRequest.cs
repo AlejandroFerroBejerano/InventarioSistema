@@ -10,6 +10,8 @@ public class StartScanRequest
     [Required]
     public string NetworkCidr { get; set; } = string.Empty;
 
+    public List<string>? Protocols { get; set; } // e.g. ["AxisVapix","Onvif","Hikvision","Dahua"]
+
     // Si no lo envías, usaremos una lista por defecto
     public List<int>? Ports { get; set; }
 
