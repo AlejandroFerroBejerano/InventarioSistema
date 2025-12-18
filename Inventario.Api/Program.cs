@@ -21,6 +21,8 @@ builder.Services.AddSingleton<ISecretProtector, SecretProtector>();
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.TcpPortScanner>();
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.SsdpDiscovery>();
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.DiscoveryService>();
+builder.Services.AddScoped<Inventario.Api.Services.Scan.CredentialProvider>();
+
 
 
 var app = builder.Build();
