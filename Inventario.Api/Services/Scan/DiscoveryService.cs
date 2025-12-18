@@ -2,7 +2,8 @@ using System.Net;
 using Inventario.Api.Models.Scan;
 
 namespace Inventario.Api.Services.Scan;
-//DiscoveryService une TCP + SSDP
+
+// DiscoveryService une TCP + SSDP
 public class DiscoveryService
 {
     private readonly TcpPortScanner _tcp;
@@ -30,22 +31,49 @@ public class DiscoveryService
         if (useSsdp)
             ssdpTask = _ssdp.DiscoverAsync(ssdpListenMs, ct);
 
+        // Resultados thread-safe mediante lock
         var results = new List<ScanHostResultDto>(ips.Count);
 
-        // Scan TCP por IP, en serie por IP pero con concurrencia interna por puertos (MVP simple).
-        foreach (var ip in ips)
+        // Concurrencia por IP (limita carga global)
+        var ipConcurrency = Math.Min(Math.Max(1, maxConcurrency), 512);
+        using var ipSemaphore = new SemaphoreSlim(ipConcurrency);
+
+        // Concurrencia por puertos dentro de cada IP (para evitar explosión de tareas)
+        var perIpPortConcurrency = 20;
+
+        var ipTasks = ips.Select(async ip =>
         {
-            ct.ThrowIfCancellationRequested();
-
-            var open = await _tcp.ScanOpenPortsAsync(ip, ports, connectTimeoutMs, maxConcurrency, ct);
-
-            results.Add(new ScanHostResultDto
+            await ipSemaphore.WaitAsync(ct);
+            try
             {
-                Ip = ip.ToString(),
-                OpenPorts = open,
-                Status = open.Count > 0 ? "Found" : "NoPorts"
-            });
-        }
+                ct.ThrowIfCancellationRequested();
+
+                var open = await _tcp.ScanOpenPortsAsync(
+                    ip,
+                    ports,
+                    connectTimeoutMs,
+                    maxConcurrency: perIpPortConcurrency,
+                    ct);
+
+                var r = new ScanHostResultDto
+                {
+                    Ip = ip.ToString(),
+                    OpenPorts = open,
+                    Status = open.Count > 0 ? "Found" : "NoPorts"
+                };
+
+                lock (results)
+                {
+                    results.Add(r);
+                }
+            }
+            finally
+            {
+                ipSemaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(ipTasks);
 
         if (ssdpTask is not null)
             ssdpMap = await ssdpTask;
@@ -61,6 +89,29 @@ public class DiscoveryService
             }
         }
 
+        // Orden estable por IP
+        results.Sort((a, b) => CompareIp(a.Ip, b.Ip));
+
         return results;
+    }
+
+    private static int CompareIp(string a, string b)
+    {
+        // Ordenación numérica IPv4 (si falla, fallback string)
+        if (IPAddress.TryParse(a, out var ipA) && IPAddress.TryParse(b, out var ipB))
+        {
+            var ba = ipA.GetAddressBytes();
+            var bb = ipB.GetAddressBytes();
+            if (ba.Length == 4 && bb.Length == 4)
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    var cmp = ba[i].CompareTo(bb[i]);
+                    if (cmp != 0) return cmp;
+                }
+                return 0;
+            }
+        }
+        return string.CompareOrdinal(a, b);
     }
 }

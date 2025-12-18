@@ -24,4 +24,6 @@ public class StartScanRequest
 
     // Duración de escucha SSDP (ms)
     public int SsdpListenMs { get; set; } = 1200;
+
+    public string? Scope { get; set; }
 }
