@@ -21,6 +21,7 @@ public class ScanHostResultDto
 
     public int? CredentialId { get; set; }
     public string? CredentialUsername { get; set; }
+    public string? SerialNumber { get; set; }
     
     //Protocol te ayuda a saber con qué “driver” ha funcionado
     public string? Protocol { get; set; }

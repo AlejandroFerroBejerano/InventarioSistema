@@ -6,6 +6,7 @@ public record ProtocolAuthResult(
     string? Manufacturer,
     string? Model,
     string? Firmware,
+    string? SerialNumber,
     int? WebPort,
     int? SdkPort,
     int? CredentialId,

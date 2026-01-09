@@ -93,6 +93,7 @@ public class ScansController : ControllerBase
                 host.Manufacturer = auth.Manufacturer;
                 host.Model = auth.Model;
                 host.Firmware = auth.Firmware;
+                host.SerialNumber = auth.SerialNumber;
                 host.WebPort = auth.WebPort ?? host.WebPort;
                 host.SdkPort = auth.SdkPort;
 
