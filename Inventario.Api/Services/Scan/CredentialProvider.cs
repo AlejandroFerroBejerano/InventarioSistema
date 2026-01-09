@@ -17,13 +17,16 @@ public class CredentialProvider
         _secrets = secrets;
     }
 
-    public async Task<List<PlainCredential>> GetActiveCredentialsAsync(string abonadoMm, CancellationToken ct)
+    public async Task<List<PlainCredential>> GetActiveCredentialsAsync(
+        string abonadoMm,
+        CancellationToken ct)
     {
         var installation = await _db.Installations
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.AbonadoMm == abonadoMm.Trim(), ct);
 
-        if (installation is null) return new();
+        if (installation is null)
+            return new();
 
         var items = await _db.InstallationCredentials
             .AsNoTracking()
@@ -40,10 +43,33 @@ public class CredentialProvider
             })
             .ToListAsync(ct);
 
-        return items.Select(x => new PlainCredential(
-            x.CredentialId,
-            x.Username,
-            _secrets.Unprotect(x.PasswordProtected),
-            x.Priority)).ToList();
+        return items
+            .Select(x => new PlainCredential(
+                x.CredentialId,
+                x.Username,
+                _secrets.Unprotect(x.PasswordProtected),
+                x.Priority))
+            .ToList();
+    }
+
+    public async Task<List<PlainCredential>> GetActiveCredentialsAsync(
+        string abonadoMm,
+        int? preferredCredentialId,
+        CancellationToken ct)
+    {
+        var creds = await GetActiveCredentialsAsync(abonadoMm, ct);
+
+        if (preferredCredentialId is null)
+            return creds;
+
+        var index = creds.FindIndex(c => c.CredentialId == preferredCredentialId.Value);
+        if (index <= 0) // 0 = ya es la primera, -1 = no está
+            return creds;
+
+        var preferred = creds[index];
+        creds.RemoveAt(index);
+        creds.Insert(0, preferred);
+
+        return creds;
     }
 }
