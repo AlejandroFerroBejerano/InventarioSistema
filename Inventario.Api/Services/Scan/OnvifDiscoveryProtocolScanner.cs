@@ -40,6 +40,7 @@ public class OnvifDiscoveryProtocolScanner : IProtocolScanner
             Manufacturer: "ONVIF",
             Model: null,
             Firmware: null,
+            SerialNumber: null,
             WebPort: host.WebPort,
             SdkPort: 3702,
             CredentialId: null,

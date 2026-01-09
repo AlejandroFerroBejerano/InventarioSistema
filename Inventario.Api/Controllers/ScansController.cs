@@ -94,15 +94,16 @@ public class ScansController : ControllerBase
                 host.Model = auth.Model;
                 host.Firmware = auth.Firmware;
                 host.SerialNumber = auth.SerialNumber;
+
                 host.WebPort = auth.WebPort ?? host.WebPort;
                 host.SdkPort = auth.SdkPort;
 
                 host.CredentialId = auth.CredentialId;
                 host.CredentialUsername = auth.CredentialUsername;
 
-                host.Status = "Authenticated";
-                host.Status = auth.Protocol.Equals("OnvifDiscovery", StringComparison.OrdinalIgnoreCase) ? "Identified": "Authenticated";
-
+                host.Status = auth.Protocol.Equals("OnvifDiscovery", StringComparison.OrdinalIgnoreCase)
+                    ? "Identified"
+                    : "Authenticated";
                 break; // si uno funciona, paramos
             }
         }

@@ -30,7 +30,16 @@ builder.Services.AddHttpClient<Inventario.Api.Services.Scan.AxisVapixClient>()
     });
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.AxisVapixProtocolScanner>();
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.OnvifDiscoveryService>();
-builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.OnvifDiscoveryProtocolScanner>();
+builder.Services.AddHttpClient<Inventario.Api.Services.Scan.OnvifDeviceClient>()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback =
+            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    });
+builder.Services.AddSingleton<Inventario.Api.Services.Scan.OnvifDiscoveryService>();
+builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.OnvifProtocolScanner>();
+
+
 
 
 var app = builder.Build();

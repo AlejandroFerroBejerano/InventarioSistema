@@ -42,6 +42,7 @@ public class AxisVapixProtocolScanner : IProtocolScanner
                 Manufacturer: "Axis",
                 Model: info.Model,
                 Firmware: info.Firmware,
+                SerialNumber: null,
                 WebPort: port,
                 SdkPort: null,
                 CredentialId: cred.CredentialId,
