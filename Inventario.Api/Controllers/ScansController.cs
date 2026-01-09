@@ -1,6 +1,10 @@
 using Inventario.Api.Models.Scan;
 using Inventario.Api.Services.Scan;
 using Microsoft.AspNetCore.Mvc;
+using Inventario.Api.Data;
+using Inventario.Api.Entities;
+using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Inventario.Api.Controllers;
 
@@ -13,15 +17,18 @@ public class ScansController : ControllerBase
     private readonly DiscoveryService _discovery;
     private readonly CredentialProvider _credentialProvider;
     private readonly IEnumerable<IProtocolScanner> _protocolScanners;
+    private readonly InventarioDbContext _db;
 
     public ScansController(
         DiscoveryService discovery,
         CredentialProvider credentialProvider,
-        IEnumerable<IProtocolScanner> protocolScanners)
+        IEnumerable<IProtocolScanner> protocolScanners,
+        InventarioDbContext db)
     {
         _discovery = discovery;
         _credentialProvider = credentialProvider;
         _protocolScanners = protocolScanners;
+        _db = db;
     }
 
     [HttpPost]
@@ -64,8 +71,7 @@ public class ScansController : ControllerBase
         // 3) Obtener credenciales activas (una sola vez)
         var creds = await _credentialProvider.GetActiveCredentialsAsync(response.AbonadoMm, ct);
 
-        // 4) Intentar protocolos por host (solo si hay algo prometedor)
-        //    Nota: aquí lo dejamos simple (secuencial por host). Luego lo paralelizamos con SemaphoreSlim.
+        // 4) Intentar protocolos por host
         foreach (var host in hosts)
         {
             ct.ThrowIfCancellationRequested();
@@ -75,10 +81,8 @@ public class ScansController : ControllerBase
                            host.OpenPorts.Contains(80) ? 80 : null;
 
             if (host.OpenPorts.Count == 0)
-                continue; // nada que intentar ahora
+                continue;
 
-            // Si no hay credenciales, igual podemos identificar sin auth en futuros protocolos,
-            // pero para AxisVapix con auth necesitamos al menos una.
             foreach (var scanner in scannersToUse)
             {
                 if (!scanner.CanTry(host))
@@ -104,12 +108,72 @@ public class ScansController : ControllerBase
                 host.Status = auth.Protocol.Equals("OnvifDiscovery", StringComparison.OrdinalIgnoreCase)
                     ? "Identified"
                     : "Authenticated";
+
+                // Category (MVP): si no viene informada aún, dejamos Unknown
+                host.Category ??= "Unknown";
+
                 break; // si uno funciona, paramos
             }
         }
 
         response.Hosts = hosts;
         response.FinishedAt = DateTime.UtcNow;
+
+        // -----------------------------
+        // Persistencia: SystemAssets (UPSERT)
+        // -----------------------------
+        var installation = await _db.Installations
+            .FirstOrDefaultAsync(x => x.AbonadoMm == response.AbonadoMm, ct);
+
+        if (installation is not null)
+        {
+            var now = DateTime.UtcNow;
+
+            foreach (var host in hosts)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var asset = await _db.SystemAssets
+                    .FirstOrDefaultAsync(x =>
+                        x.InstallationId == installation.Id &&
+                        x.IpAddress == host.Ip, ct);
+
+                if (asset is null)
+                {
+                    asset = new SystemAsset
+                    {
+                        InstallationId = installation.Id,
+                        IpAddress = host.Ip,
+                        CreatedAt = now
+                    };
+                    _db.SystemAssets.Add(asset);
+                }
+
+                asset.LastSeenAt = now;
+
+                asset.Category = string.IsNullOrWhiteSpace(host.Category) ? "Unknown" : host.Category!;
+                asset.Manufacturer = host.Manufacturer;
+                asset.Model = host.Model;
+                asset.Firmware = host.Firmware;
+                asset.SerialNumber = host.SerialNumber;
+
+                asset.WebPort = host.WebPort;
+                asset.SdkPort = host.SdkPort;
+                asset.Protocol = host.Protocol;
+                asset.Status = host.Status;
+
+                asset.OpenPortsJson = JsonSerializer.Serialize(host.OpenPorts ?? new List<int>());
+
+                // Guardar credencial preferida si autenticó
+                if (string.Equals(host.Status, "Authenticated", StringComparison.OrdinalIgnoreCase)
+                    && host.CredentialId.HasValue)
+                {
+                    asset.PreferredCredentialId = host.CredentialId.Value;
+                }
+            }
+
+            await _db.SaveChangesAsync(ct);
+        }
 
         return Ok(response);
     }
