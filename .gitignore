@@ -1,4 +1,6 @@
-## .NET / C#
+# ======================================
+# .NET
+# ======================================
 **/bin/
 **/obj/
 **/*.csproj.user
@@ -9,17 +11,10 @@
 **/[Rr]elease/
 **/[Bb]in/
 **/[Oo]bj/
-**/.vs/
-**/*.suo
-**/*.user
-**/*.userosscache
-**/*.sln.docstates
 
-## Build results
+# Build outputs
 [Bb]uild/
 [Bb]uilds/
-[Dd]ebug/
-[Rr]elease/
 x64/
 x86/
 [Aa][Rr][Mm]/
@@ -30,45 +25,138 @@ x86/
 *.pdb
 *.xml
 
-## Visual Studio / VS Code
+# NuGet
+.nuget/
+*.nupkg
+*.snupkg
+
+# Publish
+publish/
+
+# Entity Framework (archivos locales)
+*.mdf
+*.ldf
+app.db
+*.db
+__EFMigrationsHistory/
+
+# ======================================
+# Node.js / npm
+# ======================================
+# Dependencies
+node_modules/
+npm-debug.log*
+npm-debug.log.*
+.npm/
+
+# Package manager lock files (usas npm - NO ignores package-lock.json)
+# package-lock.json  ← MANTÉN ESTE ARCHIVO EN EL REPO
+yarn.lock           # Ignora si no usas yarn
+pnpm-lock.yaml      # Ignora si no usas pnpm
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.nuxt/
+.cache/
+.parcel-cache/
+
+# TypeScript / JavaScript
+*.js.map
+*.d.ts.map
+*.tsbuildinfo
+
+# Coverage
+coverage/
+.nyc_output/
+
+# ======================================
+# Mantine / React / Vite / Next.js
+# ======================================
+# Next.js
+.next/
+out/
+
+# Vite
+.vite/
+dist/
+
+# Storybook
+.storybook/
+storybook-static/
+
+# Testing
+.jest/
+playwright-report/
+test-results/
+
+# TurboRepo
+.turbo/
+
+# ======================================
+# IDEs y Editores
+# ======================================
+# Visual Studio
 .vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.sln.iml
+
+# VS Code
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-*.sln.iml
 
-## Rider
+# Rider
 .idea/
 
-## User-specific files
-*.user
-*.suo
-*.rsuser
-*.userosscache
-*.sln.docstates
+# Otros editores
+*.swp
+*.swo
+.sublime-*
+*.swp
+*.swo
 
-## Logs
-*.log
-
-## OS files
+# ======================================
+# Sistema Operativo
+# ======================================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-## NuGet
-packages/
-*.nupkg
-*.snupkg
-.nuget/
+# ======================================
+# Logs
+# ======================================
+*.log
+logs/
 
-## Test results
-TestResults/
-
-## Publish
-publish/
-
-## Others
+# ======================================
+# Temporales y Backup
+# ======================================
 *.tmp
 *.bak
 *.swp
+
+# ======================================
+# Variables de Entorno
+# ======================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ======================================
+# Testing
+# ======================================
+TestResults/
