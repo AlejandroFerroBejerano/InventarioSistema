@@ -86,4 +86,8 @@ si responde, intentar Axis VAPIX con Basic Auth usando tus credenciales (primera
 
 devolver resultados
 
-Persistencia (en el siguiente paso) de PreferredCredentialId
+Dependencias Web
+Instalar nodejs
+npm i @mantine/core @mantine/hooks @mantine/notifications @emotion/react
+npm i react-router-dom @tanstack/react-query axios
+npm i @tabler/icons-react

@@ -68,19 +68,47 @@ public class ScansController : ControllerBase
             .Where(p => selectedNames is null || selectedNames.Contains(p.Name))
             .ToList();
 
-        // 3) Obtener credenciales activas (una sola vez)
-        var creds = await _credentialProvider.GetActiveCredentialsAsync(response.AbonadoMm, ct);
+        // 2.1) Obtener InstallationId una vez (para evitar navegar Installation en SystemAsset y quitar CS8602)
+        var installationId = await _db.Installations
+            .AsNoTracking()
+            .Where(x => x.AbonadoMm == response.AbonadoMm)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(ct);
 
-        // 4) Intentar protocolos por host
+        // 3) Intentar protocolos por host
         foreach (var host in hosts)
         {
             ct.ThrowIfCancellationRequested();
 
-            // Elegir WebPort por conveniencia (443 preferido)
-            host.WebPort = host.OpenPorts.Contains(443) ? 443 :
-                           host.OpenPorts.Contains(80) ? 80 : null;
+            // Garantizar OpenPorts no-null (evita CS8602)
+            var openPorts = host.OpenPorts ?? new List<int>();
+            host.OpenPorts = openPorts;
 
-            if (host.OpenPorts.Count == 0)
+            // Buscar asset existente para obtener credencial preferida (si existe)
+            SystemAsset? existingAsset = null;
+            if (installationId.HasValue)
+            {
+                existingAsset = await _db.SystemAssets
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(a =>
+                        a.InstallationId == installationId.Value &&
+                        a.IpAddress == host.Ip,
+                        ct);
+            }
+
+            var preferredCredentialId = existingAsset?.PreferredCredentialId;
+
+            // Obtener credenciales (preferida primero si existe)
+            var creds = await _credentialProvider.GetActiveCredentialsAsync(
+                response.AbonadoMm,
+                preferredCredentialId,
+                ct);
+
+            // Elegir WebPort por conveniencia (443 preferido)
+            host.WebPort = openPorts.Contains(443) ? 443 :
+                           openPorts.Contains(80) ? 80 : null;
+
+            if (openPorts.Count == 0)
                 continue;
 
             foreach (var scanner in scannersToUse)
