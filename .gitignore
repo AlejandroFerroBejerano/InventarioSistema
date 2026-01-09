@@ -1,6 +1,19 @@
 ## .NET / C#
-bin/
-obj/
+**/bin/
+**/obj/
+**/*.csproj.user
+**/*.csproj.bak
+**/packages/
+**/TestResults/
+**/[Dd]ebug/
+**/[Rr]elease/
+**/[Bb]in/
+**/[Oo]bj/
+**/.vs/
+**/*.suo
+**/*.user
+**/*.userosscache
+**/*.sln.docstates
 
 ## Build results
 [Bb]uild/
@@ -15,6 +28,7 @@ x86/
 *.exe
 *.cache
 *.pdb
+*.xml
 
 ## Visual Studio / VS Code
 .vs/
@@ -23,6 +37,7 @@ x86/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+*.sln.iml
 
 ## Rider
 .idea/
