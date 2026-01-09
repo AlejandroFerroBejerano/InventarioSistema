@@ -25,4 +25,7 @@ public class ScanHostResultDto
     
     //Protocol te ayuda a saber con qué “driver” ha funcionado
     public string? Protocol { get; set; }
+
+    public string? Category { get; set; } // Recorder | Camera | EncoderDecoder | Server | Other | Unknown
+
 }
