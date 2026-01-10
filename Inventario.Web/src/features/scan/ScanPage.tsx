@@ -48,6 +48,18 @@ function csvEscape(value: unknown) {
   return `"${s.replaceAll('"', '""')}"`;
 }
 
+function modeLabel(mode: "NoDegrade" | "LastWins" | "Review") {
+  if (mode === "NoDegrade") return "No degradar";
+  if (mode === "LastWins") return "Último gana";
+  return "Validar";
+}
+
+function modeBadge(mode: "NoDegrade" | "LastWins" | "Review") {
+  if (mode === "NoDegrade") return <Badge color="green" variant="light">No degradar</Badge>;
+  if (mode === "LastWins") return <Badge color="orange" variant="light">Último gana</Badge>;
+  return <Badge color="gray" variant="light">Validar</Badge>;
+}
+
 export function ScanPage() {
   const [abonadoMm, setAbonadoMm] = useState("000000");
   const [networkCidr, setNetworkCidr] = useState("192.168.1.0/24");
@@ -184,22 +196,14 @@ export function ScanPage() {
           </div>
 
           <Group justify="space-between" align="flex-end">
-            <div>
-              <Title order={3}>Escaneo</Title>
-              <Text c="dimmed">
-                Ejecuta <code>POST /api/scans</code> y muestra resultados.
-              </Text>
-            </div>
-
             <Group gap="xs">
-              <Menu shadow="md" width={240}>
+              <Menu shadow="md" width={260}>
                 <Menu.Target>
                   <Button variant="light">
-                    {applyMode === "NoDegrade"
-                      ? "No degradar"
-                      : applyMode === "LastWins"
-                        ? "Último gana"
-                        : "Validar cambios"}
+                    <Group gap={8}>
+                      <Text size="sm">Modo</Text>
+                      {modeBadge(applyMode)}
+                    </Group>
                   </Button>
                 </Menu.Target>
 
@@ -207,17 +211,24 @@ export function ScanPage() {
                   <Menu.Label>Modo de aplicación</Menu.Label>
 
                   <Menu.Item onClick={() => setApplyMode("NoDegrade")}>
-                    No degradar (recomendado)
+                    <Group justify="space-between" w="100%">
+                      <Text size="sm">No degradar (recomendado)</Text>
+                      <Badge color="green" variant="light">Seguro</Badge>
+                    </Group>
                   </Menu.Item>
 
                   <Menu.Item onClick={() => setApplyMode("LastWins")}>
-                    Lo último gana
+                    <Group justify="space-between" w="100%">
+                      <Text size="sm">Lo último gana</Text>
+                      <Badge color="orange" variant="light">Agresivo</Badge>
+                    </Group>
                   </Menu.Item>
 
-                  <Menu.Item
-                    onClick={() => setApplyMode("Review")}
-                  >
-                    Validar cambios (próximamente)
+                  <Menu.Item onClick={() => setApplyMode("Review")}>
+                    <Group justify="space-between" w="100%">
+                      <Text size="sm">Validar cambios (próximamente)</Text>
+                      <Badge color="gray" variant="light">Manual</Badge>
+                    </Group>
                   </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
@@ -235,12 +246,14 @@ export function ScanPage() {
                     mutation.mutate();
                     return;
                   }
+
                   mutation.mutate();
                 }}
               >
                 Iniciar escaneo
               </Button>
             </Group>
+
           </Group>
         </Group>
 
