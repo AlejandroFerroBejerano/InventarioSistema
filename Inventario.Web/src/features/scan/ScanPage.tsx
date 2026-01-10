@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Badge,
   Button,
   Card,
   Group,
@@ -9,17 +10,29 @@ import {
   Title,
   Table,
   ScrollArea,
-  Badge,
+  Progress,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation } from "@tanstack/react-query";
 
-import { startScan } from "../../api/scans";
-import type { ScanResponseDto } from "../../api/scans";
+import { startScan, type ScanResponseDto } from "../../api/scans";
+
+function statusBadge(status?: string | null) {
+  const s = (status ?? "").toLowerCase();
+  if (s === "authenticated") return <Badge color="green" variant="light">Authenticated</Badge>;
+  if (s === "identified") return <Badge color="blue" variant="light">Identified</Badge>;
+  if (s === "noports") return <Badge color="gray" variant="light">NoPorts</Badge>;
+  if (!status) return <Text c="dimmed">-</Text>;
+  return <Badge color="yellow" variant="light">{status}</Badge>;
+}
 
 export function ScanPage() {
   const [abonadoMm, setAbonadoMm] = useState("000000");
   const [networkCidr, setNetworkCidr] = useState("192.168.1.0/24");
+  const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [filter, setFilter] = useState("");
+
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -31,6 +44,10 @@ export function ScanPage() {
         useSsdp: true,
         ssdpListenMs: 1500,
       }),
+    onMutate: () => {
+      setStartedAtMs(Date.now());
+      setElapsedMs(0);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Escaneo terminado",
@@ -44,14 +61,68 @@ export function ScanPage() {
         color: "red",
       });
     },
+    onSettled: () => {
+      // dejamos el timer como está, ya no actualiza porque isPending = false
+    },
   });
 
+  // ticker de tiempo mientras esté escaneando
+  useEffect(() => {
+    if (!mutation.isPending || startedAtMs === null) return;
+
+    const id = window.setInterval(() => {
+      setElapsedMs(Date.now() - startedAtMs);
+    }, 250);
+
+    return () => window.clearInterval(id);
+  }, [mutation.isPending, startedAtMs]);
+
   const result: ScanResponseDto | null = mutation.data ?? null;
+
+  const counts = useMemo(() => {
+    const hosts = result?.hosts ?? [];
+    const authenticated = hosts.filter((h) => (h.status ?? "").toLowerCase() === "authenticated").length;
+    const identified = hosts.filter((h) => (h.status ?? "").toLowerCase() === "identified").length;
+    return { total: hosts.length, authenticated, identified };
+  }, [result]);
 
   const rows = useMemo(() => {
     if (!result?.hosts?.length) return null;
 
-    return result.hosts.map((h) => (
+    // orden básico: authenticated primero, luego identified, luego el resto
+    const score = (s?: string | null) => {
+      const v = (s ?? "").toLowerCase();
+      if (v === "authenticated") return 0;
+      if (v === "identified") return 1;
+      return 2;
+    };
+
+    const q = filter.trim().toLowerCase();
+
+    const filtered = q.length === 0
+      ? result.hosts
+      : result.hosts.filter((h) => {
+          const haystack = [
+            h.ip,
+            (h.openPorts ?? []).join(","),
+            h.protocol ?? "",
+            h.manufacturer ?? "",
+            h.model ?? "",
+            h.firmware ?? "",
+            h.serialNumber ?? "",
+            h.status ?? "",
+            h.credentialUsername ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          return haystack.includes(q);
+        });
+
+    // orden: authenticated primero, luego identified, luego el resto
+    const sorted = [...filtered].sort((a, b) => score(a.status) - score(b.status) || a.ip.localeCompare(b.ip));
+
+    return sorted.map((h) => (
       <Table.Tr key={h.ip}>
         <Table.Td>{h.ip}</Table.Td>
         <Table.Td>{(h.openPorts ?? []).join(", ")}</Table.Td>
@@ -60,13 +131,19 @@ export function ScanPage() {
         <Table.Td>{h.model ?? "-"}</Table.Td>
         <Table.Td>{h.firmware ?? "-"}</Table.Td>
         <Table.Td>{h.serialNumber ?? "-"}</Table.Td>
-        <Table.Td>
-          {h.status ? <Badge variant="light">{h.status}</Badge> : <Text c="dimmed">-</Text>}
-        </Table.Td>
+        <Table.Td>{statusBadge(h.status)}</Table.Td>
         <Table.Td>{h.credentialUsername ?? "-"}</Table.Td>
       </Table.Tr>
     ));
-  }, [result]);
+  }, [result, filter]);
+
+  const elapsedText = useMemo(() => {
+    const ms = mutation.isPending ? elapsedMs : startedAtMs ? (mutation.data ? elapsedMs : elapsedMs) : 0;
+    const secs = Math.floor(ms / 1000);
+    const min = Math.floor(secs / 60);
+    const rem = secs % 60;
+    return min > 0 ? `${min}m ${rem}s` : `${rem}s`;
+  }, [elapsedMs, mutation.isPending, startedAtMs, mutation.data]);
 
   return (
     <Stack gap="md">
@@ -75,7 +152,7 @@ export function ScanPage() {
           <div>
             <Title order={3}>Escaneo</Title>
             <Text c="dimmed">
-              Llama a <code>POST /api/scans</code> usando el proxy de Vite.
+              Ejecuta <code>POST /api/scans</code> y muestra resultados.
             </Text>
           </div>
 
@@ -96,17 +173,37 @@ export function ScanPage() {
             onChange={(e) => setNetworkCidr(e.currentTarget.value)}
           />
         </Stack>
+
+        <Stack gap={6} mt="md">
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              {mutation.isPending ? "Escaneando..." : "Listo"}
+            </Text>
+            <Text size="sm" c="dimmed">
+              Tiempo: {mutation.isPending ? elapsedText : (startedAtMs ? elapsedText : "-")}
+            </Text>
+          </Group>
+          {mutation.isPending && <Progress value={100} animated />}
+        </Stack>
       </Card>
 
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between">
           <Title order={4}>Resultados</Title>
-          {result?.hosts ? (
-            <Text c="dimmed">{result.hosts.length} hosts</Text>
-          ) : (
-            <Text c="dimmed">Sin resultados</Text>
-          )}
+
+          <Group gap="xs">
+            <Badge variant="light">{counts.total} hosts</Badge>
+            <Badge color="green" variant="light">{counts.authenticated} auth</Badge>
+            <Badge color="blue" variant="light">{counts.identified} id</Badge>
+          </Group>
         </Group>
+
+        <TextInput
+          mt="md"
+          placeholder="Filtrar por IP / fabricante / modelo / protocolo / credencial..."
+          value={filter}
+          onChange={(e) => setFilter(e.currentTarget.value)}
+        />
 
         <ScrollArea mt="md">
           <Table striped highlightOnHover withTableBorder withColumnBorders>
