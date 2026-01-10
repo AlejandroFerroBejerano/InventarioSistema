@@ -3,7 +3,7 @@ import { http } from "./http";
 export type StartScanRequest = {
   abonadoMm: string;
   networkCidr: string;
-
+  applyMode?: "LastWins" | "NoDegrade" | "Review";
   ports?: number[];
   connectTimeoutMs?: number;
   maxConcurrency?: number;

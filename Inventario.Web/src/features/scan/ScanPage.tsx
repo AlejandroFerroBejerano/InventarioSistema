@@ -12,6 +12,7 @@ import {
   ScrollArea,
   Progress,
   Menu,
+  Select,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation } from "@tanstack/react-query";
@@ -53,12 +54,14 @@ export function ScanPage() {
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [filter, setFilter] = useState("");
+  const [applyMode, setApplyMode] = useState<"NoDegrade" | "LastWins" | "Review">("NoDegrade");
 
   const mutation = useMutation({
     mutationFn: () =>
       startScan({
         abonadoMm: abonadoMm.trim(),
         networkCidr: networkCidr.trim(),
+        applyMode,
         connectTimeoutMs: 800,
         maxConcurrency: 200,
         useSsdp: true,
@@ -180,9 +183,65 @@ export function ScanPage() {
             </Text>
           </div>
 
-          <Button loading={mutation.isPending} onClick={() => mutation.mutate()}>
-            Iniciar escaneo
-          </Button>
+          <Group justify="space-between" align="flex-end">
+            <div>
+              <Title order={3}>Escaneo</Title>
+              <Text c="dimmed">
+                Ejecuta <code>POST /api/scans</code> y muestra resultados.
+              </Text>
+            </div>
+
+            <Group gap="xs">
+              <Menu shadow="md" width={240}>
+                <Menu.Target>
+                  <Button variant="light">
+                    {applyMode === "NoDegrade"
+                      ? "No degradar"
+                      : applyMode === "LastWins"
+                        ? "Último gana"
+                        : "Validar cambios"}
+                  </Button>
+                </Menu.Target>
+
+                <Menu.Dropdown>
+                  <Menu.Label>Modo de aplicación</Menu.Label>
+
+                  <Menu.Item onClick={() => setApplyMode("NoDegrade")}>
+                    No degradar (recomendado)
+                  </Menu.Item>
+
+                  <Menu.Item onClick={() => setApplyMode("LastWins")}>
+                    Lo último gana
+                  </Menu.Item>
+
+                  <Menu.Item
+                    onClick={() => setApplyMode("Review")}
+                  >
+                    Validar cambios (próximamente)
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+
+              <Button
+                loading={mutation.isPending}
+                onClick={() => {
+                  if (applyMode === "Review") {
+                    notifications.show({
+                      title: "Modo no disponible aún",
+                      message: "Validar cambios se implementará más adelante. Usando 'No degradar'.",
+                      color: "yellow",
+                    });
+                    setApplyMode("NoDegrade");
+                    mutation.mutate();
+                    return;
+                  }
+                  mutation.mutate();
+                }}
+              >
+                Iniciar escaneo
+              </Button>
+            </Group>
+          </Group>
         </Group>
 
         <Stack gap="sm" mt="md">
