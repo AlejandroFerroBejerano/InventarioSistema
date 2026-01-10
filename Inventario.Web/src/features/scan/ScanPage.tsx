@@ -11,9 +11,11 @@ import {
   Table,
   ScrollArea,
   Progress,
+  Menu,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation } from "@tanstack/react-query";
+import { IconDownload, IconFileTypeCsv, IconBraces } from "@tabler/icons-react";
 
 import { startScan, type ScanResponseDto } from "../../api/scans";
 
@@ -26,13 +28,31 @@ function statusBadge(status?: string | null) {
   return <Badge color="yellow" variant="light">{status}</Badge>;
 }
 
+function downloadTextFile(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(value: unknown) {
+  const s = String(value ?? "");
+  return `"${s.replaceAll('"', '""')}"`;
+}
+
 export function ScanPage() {
   const [abonadoMm, setAbonadoMm] = useState("000000");
   const [networkCidr, setNetworkCidr] = useState("192.168.1.0/24");
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [filter, setFilter] = useState("");
-
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -61,9 +81,6 @@ export function ScanPage() {
         color: "red",
       });
     },
-    onSettled: () => {
-      // dejamos el timer como está, ya no actualiza porque isPending = false
-    },
   });
 
   // ticker de tiempo mientras esté escaneando
@@ -86,10 +103,11 @@ export function ScanPage() {
     return { total: hosts.length, authenticated, identified };
   }, [result]);
 
-  const rows = useMemo(() => {
-    if (!result?.hosts?.length) return null;
+  // Lista para export y para render (filtrada + ordenada)
+  const exportHosts = useMemo(() => {
+    const hosts = result?.hosts ?? [];
+    if (hosts.length === 0) return [];
 
-    // orden básico: authenticated primero, luego identified, luego el resto
     const score = (s?: string | null) => {
       const v = (s ?? "").toLowerCase();
       if (v === "authenticated") return 0;
@@ -99,30 +117,34 @@ export function ScanPage() {
 
     const q = filter.trim().toLowerCase();
 
-    const filtered = q.length === 0
-      ? result.hosts
-      : result.hosts.filter((h) => {
-          const haystack = [
-            h.ip,
-            (h.openPorts ?? []).join(","),
-            h.protocol ?? "",
-            h.manufacturer ?? "",
-            h.model ?? "",
-            h.firmware ?? "",
-            h.serialNumber ?? "",
-            h.status ?? "",
-            h.credentialUsername ?? "",
-          ]
-            .join(" ")
-            .toLowerCase();
+    const filtered =
+      q.length === 0
+        ? hosts
+        : hosts.filter((h) => {
+            const haystack = [
+              h.ip,
+              (h.openPorts ?? []).join(","),
+              h.protocol ?? "",
+              h.manufacturer ?? "",
+              h.model ?? "",
+              h.firmware ?? "",
+              h.serialNumber ?? "",
+              h.status ?? "",
+              h.credentialUsername ?? "",
+            ]
+              .join(" ")
+              .toLowerCase();
 
-          return haystack.includes(q);
-        });
+            return haystack.includes(q);
+          });
 
-    // orden: authenticated primero, luego identified, luego el resto
-    const sorted = [...filtered].sort((a, b) => score(a.status) - score(b.status) || a.ip.localeCompare(b.ip));
+    return [...filtered].sort((a, b) => score(a.status) - score(b.status) || a.ip.localeCompare(b.ip));
+  }, [result, filter]);
 
-    return sorted.map((h) => (
+  const rows = useMemo(() => {
+    if (!exportHosts.length) return null;
+
+    return exportHosts.map((h) => (
       <Table.Tr key={h.ip}>
         <Table.Td>{h.ip}</Table.Td>
         <Table.Td>{(h.openPorts ?? []).join(", ")}</Table.Td>
@@ -135,15 +157,17 @@ export function ScanPage() {
         <Table.Td>{h.credentialUsername ?? "-"}</Table.Td>
       </Table.Tr>
     ));
-  }, [result, filter]);
+  }, [exportHosts]);
 
   const elapsedText = useMemo(() => {
-    const ms = mutation.isPending ? elapsedMs : startedAtMs ? (mutation.data ? elapsedMs : elapsedMs) : 0;
+    const ms = mutation.isPending ? elapsedMs : elapsedMs;
     const secs = Math.floor(ms / 1000);
     const min = Math.floor(secs / 60);
     const rem = secs % 60;
     return min > 0 ? `${min}m ${rem}s` : `${rem}s`;
-  }, [elapsedMs, mutation.isPending, startedAtMs, mutation.data]);
+  }, [elapsedMs, mutation.isPending]);
+
+  const exportBaseName = `scan_${abonadoMm}_${networkCidr.replaceAll("/", "-")}`;
 
   return (
     <Stack gap="md">
@@ -180,7 +204,7 @@ export function ScanPage() {
               {mutation.isPending ? "Escaneando..." : "Listo"}
             </Text>
             <Text size="sm" c="dimmed">
-              Tiempo: {mutation.isPending ? elapsedText : (startedAtMs ? elapsedText : "-")}
+              Tiempo: {startedAtMs ? elapsedText : "-"}
             </Text>
           </Group>
           {mutation.isPending && <Progress value={100} animated />}
@@ -188,13 +212,91 @@ export function ScanPage() {
       </Card>
 
       <Card withBorder radius="md" p="lg">
-        <Group justify="space-between">
-          <Title order={4}>Resultados</Title>
+        <Group justify="space-between" align="flex-start">
+          <div>
+            <Title order={4}>Resultados</Title>
+            <Text size="sm" c="dimmed">
+              Mostrando: {exportHosts.length} (filtrados) / {counts.total} (total)
+            </Text>
+          </div>
 
           <Group gap="xs">
             <Badge variant="light">{counts.total} hosts</Badge>
             <Badge color="green" variant="light">{counts.authenticated} auth</Badge>
             <Badge color="blue" variant="light">{counts.identified} id</Badge>
+
+            <Menu shadow="md" width={220}>
+              <Menu.Target>
+                <Button
+                  variant="light"
+                  leftSection={<IconDownload size={18} />}
+                  disabled={!exportHosts.length}
+                >
+                  Exportar
+                </Button>
+              </Menu.Target>
+
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconFileTypeCsv size={18} />}
+                  onClick={() => {
+                    const header = [
+                      "ip",
+                      "openPorts",
+                      "webPort",
+                      "protocol",
+                      "manufacturer",
+                      "model",
+                      "firmware",
+                      "serialNumber",
+                      "status",
+                      "category",
+                      "credentialUsername",
+                      "credentialId",
+                    ];
+
+                    const lines = [
+                      header.map(csvEscape).join(","),
+                      ...exportHosts.map((h) =>
+                        [
+                          h.ip,
+                          (h.openPorts ?? []).join("|"),
+                          h.webPort ?? "",
+                          h.protocol ?? "",
+                          h.manufacturer ?? "",
+                          h.model ?? "",
+                          h.firmware ?? "",
+                          h.serialNumber ?? "",
+                          h.status ?? "",
+                          h.category ?? "",
+                          h.credentialUsername ?? "",
+                          h.credentialId ?? "",
+                        ]
+                          .map(csvEscape)
+                          .join(",")
+                      ),
+                    ];
+
+                    downloadTextFile(`${exportBaseName}.csv`, lines.join("\n"), "text/csv;charset=utf-8");
+                  }}
+                >
+                  CSV
+                </Menu.Item>
+
+                <Menu.Item
+                  leftSection={<IconBraces size={18}/>}
+                  onClick={() => {
+                    downloadTextFile(
+                      `${exportBaseName}.json`,
+                      JSON.stringify(exportHosts, null, 2),
+                      "application/json;charset=utf-8"
+                    );
+                  }}
+                >
+                  JSON
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
           </Group>
         </Group>
 
