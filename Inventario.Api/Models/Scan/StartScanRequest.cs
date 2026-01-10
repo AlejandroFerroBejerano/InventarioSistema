@@ -28,4 +28,7 @@ public class StartScanRequest
     public int SsdpListenMs { get; set; } = 1200;
 
     public string? Scope { get; set; }
+
+    public string? ApplyMode { get; set; } // "LastWins" | "NoDegrade" | "Review"
+
 }

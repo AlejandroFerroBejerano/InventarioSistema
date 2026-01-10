@@ -1,8 +1,8 @@
+using Inventario.Api.Data;
+using Inventario.Api.Entities;
 using Inventario.Api.Models.Scan;
 using Inventario.Api.Services.Scan;
 using Microsoft.AspNetCore.Mvc;
-using Inventario.Api.Data;
-using Inventario.Api.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
@@ -48,6 +48,8 @@ public class ScansController : ControllerBase
             StartedAt = DateTime.UtcNow
         };
 
+        var applyMode = NormalizeApplyMode(request.ApplyMode);
+
         // 1) DISCOVERY (TCP + SSDP)
         var hosts = await _discovery.DiscoverAsync(
             ips: ips,
@@ -58,7 +60,7 @@ public class ScansController : ControllerBase
             ssdpListenMs: request.SsdpListenMs,
             ct: ct);
 
-        // 2) Preparar lista de protocolos seleccionados (si el usuario los envía)
+        // 2) Protocolos seleccionados (si el usuario los envía)
         var selectedNames = request.Protocols?
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
@@ -68,7 +70,7 @@ public class ScansController : ControllerBase
             .Where(p => selectedNames is null || selectedNames.Contains(p.Name))
             .ToList();
 
-        // 2.1) Obtener InstallationId una vez (para evitar navegar Installation en SystemAsset y quitar CS8602)
+        // 2.1) Obtener InstallationId una vez (evita navegar Installation en SystemAsset)
         var installationId = await _db.Installations
             .AsNoTracking()
             .Where(x => x.AbonadoMm == response.AbonadoMm)
@@ -80,9 +82,9 @@ public class ScansController : ControllerBase
         {
             ct.ThrowIfCancellationRequested();
 
-            // Garantizar OpenPorts no-null (evita CS8602)
-            var openPorts = host.OpenPorts ?? new List<int>();
-            host.OpenPorts = openPorts;
+            // Garantizar OpenPorts no-null
+            host.OpenPorts ??= new List<int>();
+            var openPorts = host.OpenPorts;
 
             // Buscar asset existente para obtener credencial preferida (si existe)
             SystemAsset? existingAsset = null;
@@ -137,7 +139,6 @@ public class ScansController : ControllerBase
                     ? "Identified"
                     : "Authenticated";
 
-                // Category (MVP): si no viene informada aún, dejamos Unknown
                 host.Category ??= "Unknown";
 
                 break; // si uno funciona, paramos
@@ -148,7 +149,7 @@ public class ScansController : ControllerBase
         response.FinishedAt = DateTime.UtcNow;
 
         // -----------------------------
-        // Persistencia: SystemAssets (UPSERT)
+        // Persistencia: SystemAssets (UPSERT) según ApplyMode
         // -----------------------------
         var installation = await _db.Installations
             .FirstOrDefaultAsync(x => x.AbonadoMm == response.AbonadoMm, ct);
@@ -177,20 +178,34 @@ public class ScansController : ControllerBase
                     _db.SystemAssets.Add(asset);
                 }
 
+                // Siempre
                 asset.LastSeenAt = now;
-
-                asset.Category = string.IsNullOrWhiteSpace(host.Category) ? "Unknown" : host.Category!;
-                asset.Manufacturer = host.Manufacturer;
-                asset.Model = host.Model;
-                asset.Firmware = host.Firmware;
-                asset.SerialNumber = host.SerialNumber;
-
-                asset.WebPort = host.WebPort;
-                asset.SdkPort = host.SdkPort;
-                asset.Protocol = host.Protocol;
-                asset.Status = host.Status;
-
                 asset.OpenPortsJson = JsonSerializer.Serialize(host.OpenPorts ?? new List<int>());
+                asset.WebPort = host.WebPort ?? asset.WebPort;
+                asset.SdkPort = host.SdkPort ?? asset.SdkPort;
+
+                // Aplicación según modo
+                if (applyMode.Equals("LastWins", StringComparison.OrdinalIgnoreCase))
+                {
+                    asset.Category = string.IsNullOrWhiteSpace(host.Category) ? asset.Category : host.Category!;
+                    asset.Manufacturer = host.Manufacturer;
+                    asset.Model = host.Model;
+                    asset.Firmware = host.Firmware;
+                    asset.SerialNumber = host.SerialNumber;
+                    asset.Protocol = host.Protocol;
+                    asset.Status = host.Status;
+                }
+                else
+                {
+                    // NoDegrade (y Review por ahora lo tratamos igual)
+                    asset.Category = KeepIfUnknown(asset.Category, host.Category) ?? asset.Category ?? "Unknown";
+                    asset.Manufacturer = KeepIfBlank(asset.Manufacturer, host.Manufacturer);
+                    asset.Model = KeepIfBlank(asset.Model, host.Model);
+                    asset.Firmware = KeepIfBlank(asset.Firmware, host.Firmware);
+                    asset.SerialNumber = KeepIfBlank(asset.SerialNumber, host.SerialNumber);
+                    asset.Protocol = KeepIfBlank(asset.Protocol, host.Protocol);
+                    asset.Status = KeepBestStatus(asset.Status, host.Status);
+                }
 
                 // Guardar credencial preferida si autenticó
                 if (string.Equals(host.Status, "Authenticated", StringComparison.OrdinalIgnoreCase)
@@ -205,4 +220,37 @@ public class ScansController : ControllerBase
 
         return Ok(response);
     }
+
+    // -----------------------------
+    // Helpers (A3) - a nivel de clase
+    // -----------------------------
+    private static string NormalizeApplyMode(string? mode)
+    {
+        var m = (mode ?? "").Trim();
+        if (m.Equals("LastWins", StringComparison.OrdinalIgnoreCase)) return "LastWins";
+        if (m.Equals("NoDegrade", StringComparison.OrdinalIgnoreCase)) return "NoDegrade";
+        if (m.Equals("Review", StringComparison.OrdinalIgnoreCase)) return "Review";
+        return "NoDegrade";
+    }
+
+    private static int StatusRank(string? s) => (s ?? "").Trim().ToLowerInvariant() switch
+    {
+        "authenticated" => 3,
+        "identified" => 2,
+        "noports" => 1,
+        _ => 0
+    };
+
+    private static string? KeepIfBlank(string? current, string? incoming)
+        => string.IsNullOrWhiteSpace(incoming) ? current : incoming;
+
+    private static string? KeepIfUnknown(string? current, string? incoming)
+    {
+        if (string.IsNullOrWhiteSpace(incoming)) return current;
+        if (string.Equals(incoming, "Unknown", StringComparison.OrdinalIgnoreCase)) return current;
+        return incoming;
+    }
+
+    private static string? KeepBestStatus(string? current, string? incoming)
+        => StatusRank(incoming) >= StatusRank(current) ? incoming : current;
 }
