@@ -15,10 +15,11 @@ import {
   Select,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { IconDownload, IconFileTypeCsv, IconBraces } from "@tabler/icons-react";
-
 import { startScan, type ScanResponseDto } from "../../api/scans";
+import { InstallationPicker, type InstallationListItem } from "../installations/components/InstallationPicker";
+
 
 function statusBadge(status?: string | null) {
   const s = (status ?? "").toLowerCase();
@@ -27,6 +28,12 @@ function statusBadge(status?: string | null) {
   if (s === "noports") return <Badge color="gray" variant="light">NoPorts</Badge>;
   if (!status) return <Text c="dimmed">-</Text>;
   return <Badge color="yellow" variant="light">{status}</Badge>;
+}
+
+async function fetchInstallations(): Promise<InstallationListItem[]> {
+  const res = await fetch("/api/installations");
+  if (!res.ok) throw new Error("No se pudieron cargar instalaciones");
+  return res.json();
 }
 
 function downloadTextFile(filename: string, content: string, mime: string) {
@@ -67,11 +74,17 @@ export function ScanPage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [filter, setFilter] = useState("");
   const [applyMode, setApplyMode] = useState<"NoDegrade" | "LastWins" | "Review">("NoDegrade");
+  const [selectedAbonadoMm, setSelectedAbonadoMm] = useState<string | null>(null);
+
+  const installationsQuery = useQuery({
+    queryKey: ["installations"],
+    queryFn: fetchInstallations,
+  });
 
   const mutation = useMutation({
     mutationFn: () =>
       startScan({
-        abonadoMm: abonadoMm.trim(),
+        abonadoMm: (selectedAbonadoMm ?? abonadoMm).trim(),
         networkCidr: networkCidr.trim(),
         applyMode,
         connectTimeoutMs: 800,
@@ -235,6 +248,7 @@ export function ScanPage() {
 
               <Button
                 loading={mutation.isPending}
+                disabled={!selectedAbonadoMm}
                 onClick={() => {
                   if (applyMode === "Review") {
                     notifications.show({
@@ -258,11 +272,13 @@ export function ScanPage() {
         </Group>
 
         <Stack gap="sm" mt="md">
-          <TextInput
-            label="AbonadoMm"
-            value={abonadoMm}
-            onChange={(e) => setAbonadoMm(e.currentTarget.value)}
+          <InstallationPicker
+            installations={installationsQuery.data ?? []}
+            value={selectedAbonadoMm}
+            onChange={setSelectedAbonadoMm}
+            loading={installationsQuery.isLoading}
           />
+
           <TextInput
             label="Network CIDR"
             value={networkCidr}
