@@ -33,6 +33,19 @@ x86/
 # Publish
 publish/
 
+# SQLite database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*-shm
+*-wal
+*.sqlite
+*.sqlite3
+*.db3
+App_Data/*.db
+Data/*.db
+
 # Entity Framework (archivos locales)
 *.mdf
 *.ldf
@@ -40,6 +53,11 @@ app.db
 *.db
 *.db-wal
 *.db-shm
+*-shm
+*-wal
+*.sqlite
+*.sqlite3
+*.db3
 __EFMigrationsHistory/
 
 # ======================================
