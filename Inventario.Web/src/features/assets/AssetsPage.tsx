@@ -12,9 +12,11 @@ import {
   ScrollArea,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useQuery } from "@tanstack/react-query";
-
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { InstallationPicker, type InstallationListItem } from "../installations/components/InstallationPicker";
+import { getInstallations, createInstallation } from "../../api/installations";
 import { getAssets, type SystemAssetListItemDto } from "../../api/assets";
+import { useSelectedInstallation } from "../installations/useSelectedInstallation";
 
 function statusBadge(status?: string | null) {
   const s = (status ?? "").toLowerCase();
@@ -26,13 +28,39 @@ function statusBadge(status?: string | null) {
 }
 
 export function AssetsPage() {
-  const [abonadoMm, setAbonadoMm] = useState("000000");
   const [filter, setFilter] = useState("");
 
+  const { selectedAbonadoMm, setSelectedAbonadoMm } = useSelectedInstallation();
+  const installationsQuery = useQuery({
+    queryKey: ["installations"],
+    queryFn: getInstallations,
+  });
+
+  const qc = useQueryClient();
+
+  const createInstallationMutation = useMutation({
+    mutationFn: createInstallation,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["installations"] });
+      notifications.show({
+        title: "Instalación creada",
+        message: "Ya puedes seleccionarla.",
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error creando instalación",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
+  });
+
+
   const query = useQuery({
-    queryKey: ["assets", abonadoMm],
-    queryFn: () => getAssets(abonadoMm),
-    enabled: false, // manual
+    queryKey: ["assets", selectedAbonadoMm],
+    queryFn: () => getAssets(selectedAbonadoMm!),
+    enabled: !!selectedAbonadoMm,
   });
 
   const data = query.data ?? [];
@@ -88,29 +116,33 @@ export function AssetsPage() {
             <Text c="dimmed">Inventario persistido en base de datos (SystemAssets).</Text>
           </div>
 
-          <Button
-            loading={query.isFetching}
-            onClick={async () => {
-              try {
-                await query.refetch();
-              } catch (err: any) {
-                notifications.show({
-                  title: "Error al cargar activos",
-                  message: err?.message ?? "Error desconocido",
-                  color: "red",
-                });
-              }
-            }}
-          >
-            Cargar
-          </Button>
+        <Button
+          loading={query.isFetching}
+          disabled={!selectedAbonadoMm}
+          onClick={async () => {
+            try {
+              await query.refetch();
+            } catch (err: any) {
+              notifications.show({
+                title: "Error al cargar activos",
+                message: err?.message ?? "Error desconocido",
+                color: "red",
+              });
+            }
+          }}
+        >
+          Cargar
+        </Button>
+
         </Group>
 
         <Stack gap="sm" mt="md">
-          <TextInput
-            label="AbonadoMm"
-            value={abonadoMm}
-            onChange={(e) => setAbonadoMm(e.currentTarget.value)}
+          <InstallationPicker
+            installations={installationsQuery.data ?? []}
+            value={selectedAbonadoMm}
+            onChange={setSelectedAbonadoMm}
+            loading={installationsQuery.isLoading}
+            onCreate={(input) => createInstallationMutation.mutateAsync(input)}
           />
 
           <TextInput

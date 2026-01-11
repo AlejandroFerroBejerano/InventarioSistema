@@ -15,10 +15,12 @@ import {
   Select,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconDownload, IconFileTypeCsv, IconBraces } from "@tabler/icons-react";
 import { startScan, type ScanResponseDto } from "../../api/scans";
 import { InstallationPicker, type InstallationListItem } from "../installations/components/InstallationPicker";
+import { getInstallations, createInstallation } from "../../api/installations";
+import { useSelectedInstallation } from "../installations/useSelectedInstallation";
 
 
 function statusBadge(status?: string | null) {
@@ -28,12 +30,6 @@ function statusBadge(status?: string | null) {
   if (s === "noports") return <Badge color="gray" variant="light">NoPorts</Badge>;
   if (!status) return <Text c="dimmed">-</Text>;
   return <Badge color="yellow" variant="light">{status}</Badge>;
-}
-
-async function fetchInstallations(): Promise<InstallationListItem[]> {
-  const res = await fetch("/api/installations");
-  if (!res.ok) throw new Error("No se pudieron cargar instalaciones");
-  return res.json();
 }
 
 function downloadTextFile(filename: string, content: string, mime: string) {
@@ -74,11 +70,28 @@ export function ScanPage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [filter, setFilter] = useState("");
   const [applyMode, setApplyMode] = useState<"NoDegrade" | "LastWins" | "Review">("NoDegrade");
-  const [selectedAbonadoMm, setSelectedAbonadoMm] = useState<string | null>(null);
+  const { selectedAbonadoMm, setSelectedAbonadoMm } = useSelectedInstallation();
 
   const installationsQuery = useQuery({
     queryKey: ["installations"],
-    queryFn: fetchInstallations,
+    queryFn: getInstallations,
+  });
+
+  const qc = useQueryClient();
+
+  const createInstallationMutation = useMutation({
+    mutationFn: createInstallation,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["installations"] });
+      notifications.show({ title: "Instalación creada", message: "Ya puedes usarla para escanear." });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error creando instalación",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
   });
 
   const mutation = useMutation({
@@ -277,6 +290,7 @@ export function ScanPage() {
             value={selectedAbonadoMm}
             onChange={setSelectedAbonadoMm}
             loading={installationsQuery.isLoading}
+            onCreate={(input) => createInstallationMutation.mutateAsync(input)}
           />
 
           <TextInput

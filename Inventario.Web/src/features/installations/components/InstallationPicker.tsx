@@ -93,8 +93,8 @@ export function InstallationPicker({
           disabled={loading}
         />
 
-        <Button variant="light" onClick={() => setOpen(true)}>
-          Nueva
+        <Button variant="light" onClick={() => setOpen(true)} disabled={!onCreate}>
+            Nueva
         </Button>
       </Group>
 
@@ -117,7 +117,7 @@ export function InstallationPicker({
             <Button variant="default" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button loading={creating} onClick={handleCreate}>
+            <Button loading={creating} onClick={handleCreate} disabled={!onCreate}>
               Crear
             </Button>
           </Group>
