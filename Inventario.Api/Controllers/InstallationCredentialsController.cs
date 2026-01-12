@@ -27,8 +27,6 @@ public class InstallationCredentialsController : ControllerBase
     private static string NormalizeScope(string? scope)
         => string.IsNullOrWhiteSpace(scope) ? "General" : scope.Trim();
 
-    private static string Key(string s) => s.Trim().ToLowerInvariant();
-
     private async Task<Installation?> FindInstallationAsync(string abonadoMm, bool asNoTracking = false)
     {
         var ab = NormalizeAbonado(abonadoMm);
@@ -76,15 +74,21 @@ public class InstallationCredentialsController : ControllerBase
 
         var username = NormalizeUsername(request.Username);
         var scope = NormalizeScope(request.Scope);
+        var usernameKey = username.ToLowerInvariant();
+        var scopeKey = scope.ToLowerInvariant();
 
         // Evitar duplicados: misma instalación + username + scope (case-insensitive)
         var duplicate = await _db.InstallationCredentials
-            .Include(x => x.Credential)
-            .AnyAsync(x =>
+            .Where(x =>
                 x.InstallationId == installation.Id &&
-                Key(x.Credential!.Username) == Key(username) &&
-                Key(x.Scope) == Key(scope));
-
+                x.Scope.ToLower() == scopeKey)
+            .Join(
+                _db.Credentials,
+                ic => ic.CredentialId,
+                c => c.Id,
+                (ic, c) => new { ic, c }
+            )
+            .AnyAsync(x => x.c.Username.ToLower() == usernameKey);
         if (duplicate)
         {
             return Conflict(new
@@ -157,15 +161,21 @@ public class InstallationCredentialsController : ControllerBase
         if (newScope is not null && !string.Equals(newScope, link.Scope, StringComparison.OrdinalIgnoreCase))
         {
             var username = link.Credential!.Username;
+            var newScopeKey = newScope.ToLowerInvariant();
+            var usernameKey = link.Credential!.Username.ToLowerInvariant();
 
             var duplicate = await _db.InstallationCredentials
-                .Include(x => x.Credential)
-                .AnyAsync(x =>
+                .Where(x =>
                     x.InstallationId == installation.Id &&
                     x.CredentialId != credentialId &&
-                    Key(x.Credential!.Username) == Key(username) &&
-                    Key(x.Scope) == Key(newScope));
-
+                    x.Scope.ToLower() == newScopeKey)
+                .Join(
+                    _db.Credentials,
+                    ic => ic.CredentialId,
+                    c => c.Id,
+                    (ic, c) => new { ic, c }
+                )
+                .AnyAsync(x => x.c.Username.ToLower() == usernameKey);
             if (duplicate)
             {
                 return Conflict(new
