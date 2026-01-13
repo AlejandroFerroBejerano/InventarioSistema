@@ -135,11 +135,7 @@ public class ScansController : ControllerBase
                 host.CredentialId = auth.CredentialId;
                 host.CredentialUsername = auth.CredentialUsername;
 
-                host.Status = auth.Protocol.Equals("OnvifDiscovery", StringComparison.OrdinalIgnoreCase)
-                    ? "Identified"
-                    : "Authenticated";
-
-                host.Category ??= "Unknown";
+                host.Status = auth.CredentialId.HasValue ? "Authenticated" : "Identified";
 
                 break; // si uno funciona, paramos
             }
