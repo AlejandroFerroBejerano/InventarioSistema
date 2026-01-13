@@ -3,7 +3,6 @@ using Inventario.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Inventario.Api.Security;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 var dbPath = Path.Combine(builder.Environment.ContentRootPath, "inventario.db");
@@ -17,20 +16,24 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<ISecretProtector, SecretProtector>();
-//Servicios de Escaneo
+
+// ----------------------------
+// Servicios de Escaneo
+// ----------------------------
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.TcpPortScanner>();
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.SsdpDiscovery>();
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.DiscoveryService>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.CredentialProvider>();
-builder.Services.AddHttpClient<Inventario.Api.Services.Scan.AxisVapixClient>()
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-    {
-        ServerCertificateCustomValidationCallback =
-            HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-    });
+
+// AXIS (Digest): el nuevo AxisVapixClient crea su propio HttpClientHandler con Credentials por llamada
+builder.Services.AddSingleton<Inventario.Api.Services.Scan.AxisVapixClient>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.AxisVapixProtocolScanner>();
+
+// DAHUA
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.DahuaCgiClient>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.DahuaCgiProtocolScanner>();
+
+// ONVIF
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.OnvifDiscoveryService>();
 builder.Services.AddHttpClient<Inventario.Api.Services.Scan.OnvifDeviceClient>()
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -38,11 +41,7 @@ builder.Services.AddHttpClient<Inventario.Api.Services.Scan.OnvifDeviceClient>()
         ServerCertificateCustomValidationCallback =
             HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
     });
-builder.Services.AddSingleton<Inventario.Api.Services.Scan.OnvifDiscoveryService>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.OnvifProtocolScanner>();
-
-
-
 
 var app = builder.Build();
 
@@ -56,8 +55,5 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 
 app.UseAuthorization();
-
-// Mapea controladores (IMPORTANTE)
 app.MapControllers();
-
 app.Run();
