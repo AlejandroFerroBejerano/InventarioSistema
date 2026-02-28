@@ -226,8 +226,9 @@ public class ScansController : ControllerBase
                 }
             }
 
+            var dbFile = _db.Database.GetDbConnection().DataSource;
+
             await _db.SaveChangesAsync(ct);
-        }
 
         return Ok(response);
     }
