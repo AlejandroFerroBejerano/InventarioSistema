@@ -228,7 +228,18 @@ public class ScansController : ControllerBase
 
             var dbFile = _db.Database.GetDbConnection().DataSource;
 
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"[SCAN] DB Path = {dbFile}");
+            Console.WriteLine($"[SCAN] AbonadoMm = '{response.AbonadoMm}'");
+            Console.ResetColor();
+
             await _db.SaveChangesAsync(ct);
+            
+            var totalAssets = await _db.SystemAssets.CountAsync(ct);
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"[SCAN] SaveChanges OK. Total SystemAssets now = {totalAssets}");
+            Console.ResetColor();
+        }
 
         return Ok(response);
     }
