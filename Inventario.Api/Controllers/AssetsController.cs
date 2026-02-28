@@ -48,7 +48,7 @@ public class AssetsController : ControllerBase
                 WebPort = x.WebPort,
                 SdkPort = x.SdkPort,
                 PreferredCredentialId = x.PreferredCredentialId,
-                LastSeenAt = x.LastSeenAt,
+                LastSeenAt = DateTime.SpecifyKind(x.LastSeenAt, DateTimeKind.Utc),
                 OpenPorts = x.OpenPortsJson
             })
             .ToListAsync(ct);

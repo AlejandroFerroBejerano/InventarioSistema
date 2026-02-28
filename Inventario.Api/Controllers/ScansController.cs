@@ -173,6 +173,8 @@ public class ScansController : ControllerBase
             {
                 ct.ThrowIfCancellationRequested();
 
+                if (string.Equals(host.Status, "NoPorts", StringComparison.OrdinalIgnoreCase)) continue;
+
                 var asset = await _db.SystemAssets
                     .FirstOrDefaultAsync(x =>
                         x.InstallationId == installation.Id &&
