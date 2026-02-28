@@ -12,7 +12,7 @@ public record HikvisionInfo(
 
 public sealed class HikvisionIsapiClient
 {
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromMilliseconds(2200);
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromMilliseconds(6200);
 
     public async Task<HikvisionInfo?> TryGetDeviceInfoAsync(
         string ip,

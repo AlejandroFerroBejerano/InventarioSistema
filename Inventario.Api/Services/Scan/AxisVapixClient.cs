@@ -8,7 +8,7 @@ public record AxisInfo(string? Model, string? Firmware, string? SerialNumber);
 
 public sealed class AxisVapixClient
 {
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromMilliseconds(2200);
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromMilliseconds(6200);
 
     public async Task<AxisInfo?> TryGetAxisInfoAsync(
         string ip,

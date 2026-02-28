@@ -39,7 +39,7 @@ public class DiscoveryService
         using var ipSemaphore = new SemaphoreSlim(ipConcurrency);
 
         // Concurrencia por puertos dentro de cada IP (para evitar explosión de tareas)
-        var perIpPortConcurrency = 20;
+        var perIpPortConcurrency = 10;
 
         var ipTasks = ips.Select(async ip =>
         {

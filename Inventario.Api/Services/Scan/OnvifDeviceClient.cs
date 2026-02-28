@@ -14,7 +14,7 @@ public class OnvifDeviceClient
     public OnvifDeviceClient(HttpClient http)
     {
         _http = http;
-        _http.Timeout = TimeSpan.FromMilliseconds(1800);
+        _http.Timeout = TimeSpan.FromMilliseconds(6800);
     }
 
     public async Task<OnvifDeviceInfo?> GetDeviceInformationAsync(

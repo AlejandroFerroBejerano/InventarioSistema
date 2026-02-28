@@ -16,16 +16,16 @@ public class StartScanRequest
     public List<int>? Ports { get; set; }
 
     // Timeout por intento TCP (ms)
-    public int ConnectTimeoutMs { get; set; } = 400;
+    public int ConnectTimeoutMs { get; set; } = 4200;
 
     // Máximo de conexiones en paralelo (para no saturar)
-    public int MaxConcurrency { get; set; } = 200;
+    public int MaxConcurrency { get; set; } = 10;
 
     // Activar SSDP discovery
     public bool UseSsdp { get; set; } = true;
 
     // Duración de escucha SSDP (ms)
-    public int SsdpListenMs { get; set; } = 1200;
+    public int SsdpListenMs { get; set; } = 4200;
 
     public string? Scope { get; set; }
 

@@ -25,19 +25,15 @@ builder.Services.AddSingleton<Inventario.Api.Services.Scan.SsdpDiscovery>();
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.DiscoveryService>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.CredentialProvider>();
 
-// AXIS (Digest): el nuevo AxisVapixClient crea su propio HttpClientHandler con Credentials por llamada
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.AxisVapixClient>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.AxisVapixProtocolScanner>();
 
-// DAHUA
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.DahuaCgiClient>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.DahuaCgiProtocolScanner>();
 
-//HIKVISION
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.HikvisionIsapiClient>();
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.HikvisionIsapiProtocolScanner>();
 
-// ONVIF
 builder.Services.AddSingleton<Inventario.Api.Services.Scan.OnvifDiscoveryService>();
 builder.Services.AddHttpClient<Inventario.Api.Services.Scan.OnvifDeviceClient>()
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -48,6 +44,15 @@ builder.Services.AddHttpClient<Inventario.Api.Services.Scan.OnvifDeviceClient>()
 builder.Services.AddScoped<Inventario.Api.Services.Scan.IProtocolScanner, Inventario.Api.Services.Scan.OnvifProtocolScanner>();
 
 var app = builder.Build();
+
+// Aplicar migraciones automáticamente al arrancar
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<InventarioDbContext>();
+    db.Database.Migrate();
+
+    app.Logger.LogInformation("SQLite DB path: {DbPath}", dbPath);
+}
 
 // Pipeline HTTP
 if (app.Environment.IsDevelopment())

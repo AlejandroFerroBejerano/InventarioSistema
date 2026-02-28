@@ -66,9 +66,16 @@ public class ScansController : ControllerBase
             .Select(x => x.Trim())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // ✅ Si viene lista vacía, lo interpretamos como "sin filtro" (= todos)
+        if (selectedNames is { Count: 0 })
+            selectedNames = null;
+
         var scannersToUse = _protocolScanners
             .Where(p => selectedNames is null || selectedNames.Contains(p.Name))
             .ToList();
+        
+        // 🔎 Log opcional para depuración
+        Console.WriteLine($"Scanners activos: {string.Join(", ", scannersToUse.Select(s => s.Name))}");
 
         // 2.1) Obtener InstallationId una vez (evita navegar Installation en SystemAsset)
         var installationId = await _db.Installations
@@ -105,6 +112,14 @@ public class ScansController : ControllerBase
                 response.AbonadoMm,
                 preferredCredentialId,
                 ct);
+            
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("--------------------------------------------------");
+            Console.WriteLine($"HOST: {host.Ip}");
+            Console.WriteLine($"Credenciales activas recibidas: {creds.Count}");
+            Console.WriteLine($"PreferredCredentialId: {preferredCredentialId}");
+            Console.WriteLine("--------------------------------------------------");
+            Console.ResetColor();
 
             // Elegir WebPort por conveniencia (443 preferido)
             host.WebPort = openPorts.Contains(443) ? 443 :
