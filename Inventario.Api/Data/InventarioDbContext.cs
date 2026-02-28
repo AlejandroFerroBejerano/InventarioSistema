@@ -14,6 +14,7 @@ public class InventarioDbContext : DbContext
     public DbSet<Credential> Credentials => Set<Credential>();
     public DbSet<InstallationCredential> InstallationCredentials => Set<InstallationCredential>();
     public DbSet<SystemAsset> SystemAssets => Set<SystemAsset>();
+    public DbSet<Network> Networks => Set<Network>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -70,6 +71,30 @@ public class InventarioDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(x => x.PreferredCredentialId)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----------------------------
+        // Network (redes por instalación)
+        // ----------------------------
+        modelBuilder.Entity<Network>(entity =>
+        {
+            entity.Property(x => x.Name)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.Cidr)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            // Relación con Installation
+            entity.HasOne(x => x.Installation)
+                .WithMany() // si luego añadimos Installation.Networks lo cambiamos
+                .HasForeignKey(x => x.InstallationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Unicidad: no repetir nombre ni CIDR dentro de la instalación
+            entity.HasIndex(x => new { x.InstallationId, x.Name }).IsUnique();
+            entity.HasIndex(x => new { x.InstallationId, x.Cidr }).IsUnique();
         });
     }
 }

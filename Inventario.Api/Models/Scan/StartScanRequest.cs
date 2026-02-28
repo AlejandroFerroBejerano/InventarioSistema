@@ -7,6 +7,8 @@ public class StartScanRequest
     [Required]
     public string AbonadoMm { get; set; } = string.Empty;
 
+    public int? NetworkId { get; set; } // si viene, el backend carga CIDR desde BD
+
     [Required]
     public string NetworkCidr { get; set; } = string.Empty;
 

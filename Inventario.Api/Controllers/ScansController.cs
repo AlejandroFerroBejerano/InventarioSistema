@@ -34,7 +34,43 @@ public class ScansController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ScanResponseDto>> Start([FromBody] StartScanRequest request, CancellationToken ct)
     {
-        var ips = CidrHelper.Expand(request.NetworkCidr);
+        ct.ThrowIfCancellationRequested();
+
+        var abonado = request.AbonadoMm.Trim();
+        if (string.IsNullOrWhiteSpace(abonado))
+            return BadRequest("abonadoMm is required");
+
+        // Obtener InstallationId una vez y reutilizarlo
+        var installationId = await _db.Installations
+            .AsNoTracking()
+            .Where(x => x.AbonadoMm == abonado)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(ct);
+
+        if (!installationId.HasValue)
+            return BadRequest("Installation not found for abonadoMm");
+
+        // ✅ Si viene NetworkId, cargar CIDR desde BD y validar que pertenece a la instalación
+        if (request.NetworkId.HasValue)
+        {
+            var network = await _db.Networks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n =>
+                    n.Id == request.NetworkId.Value &&
+                    n.InstallationId == installationId.Value,
+                    ct);
+
+            if (network is null)
+                return BadRequest("NetworkId not found for this abonadoMm");
+
+            request.NetworkCidr = network.Cidr;
+        }
+
+        var cidr = request.NetworkCidr.Trim();
+        if (string.IsNullOrWhiteSpace(cidr))
+            return BadRequest("networkCidr is required");
+
+        var ips = CidrHelper.Expand(cidr);
 
         var ports = (request.Ports is { Count: > 0 } ? request.Ports : DefaultPorts)
             .Distinct()
@@ -43,8 +79,8 @@ public class ScansController : ControllerBase
 
         var response = new ScanResponseDto
         {
-            AbonadoMm = request.AbonadoMm.Trim(),
-            NetworkCidr = request.NetworkCidr.Trim(),
+            AbonadoMm = abonado,
+            NetworkCidr = cidr,
             StartedAt = DateTime.UtcNow
         };
 
@@ -73,16 +109,9 @@ public class ScansController : ControllerBase
         var scannersToUse = _protocolScanners
             .Where(p => selectedNames is null || selectedNames.Contains(p.Name))
             .ToList();
-        
+
         // 🔎 Log opcional para depuración
         Console.WriteLine($"Scanners activos: {string.Join(", ", scannersToUse.Select(s => s.Name))}");
-
-        // 2.1) Obtener InstallationId una vez (evita navegar Installation en SystemAsset)
-        var installationId = await _db.Installations
-            .AsNoTracking()
-            .Where(x => x.AbonadoMm == response.AbonadoMm)
-            .Select(x => (int?)x.Id)
-            .FirstOrDefaultAsync(ct);
 
         // 3) Intentar protocolos por host
         foreach (var host in hosts)
@@ -94,25 +123,21 @@ public class ScansController : ControllerBase
             var openPorts = host.OpenPorts;
 
             // Buscar asset existente para obtener credencial preferida (si existe)
-            SystemAsset? existingAsset = null;
-            if (installationId.HasValue)
-            {
-                existingAsset = await _db.SystemAssets
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(a =>
-                        a.InstallationId == installationId.Value &&
-                        a.IpAddress == host.Ip,
-                        ct);
-            }
+            SystemAsset? existingAsset = await _db.SystemAssets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a =>
+                    a.InstallationId == installationId.Value &&
+                    a.IpAddress == host.Ip,
+                    ct);
 
             var preferredCredentialId = existingAsset?.PreferredCredentialId;
 
             // Obtener credenciales (preferida primero si existe)
             var creds = await _credentialProvider.GetActiveCredentialsAsync(
-                response.AbonadoMm,
+                abonado,
                 preferredCredentialId,
                 ct);
-            
+
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("--------------------------------------------------");
             Console.WriteLine($"HOST: {host.Ip}");
@@ -125,6 +150,7 @@ public class ScansController : ControllerBase
             host.WebPort = openPorts.Contains(443) ? 443 :
                            openPorts.Contains(80) ? 80 : null;
 
+            // Si no hay puertos abiertos no probamos protocolos
             if (openPorts.Count == 0)
                 continue;
 
@@ -163,7 +189,7 @@ public class ScansController : ControllerBase
         // Persistencia: SystemAssets (UPSERT) según ApplyMode
         // -----------------------------
         var installation = await _db.Installations
-            .FirstOrDefaultAsync(x => x.AbonadoMm == response.AbonadoMm, ct);
+            .FirstOrDefaultAsync(x => x.Id == installationId.Value, ct);
 
         if (installation is not null)
         {
@@ -173,7 +199,9 @@ public class ScansController : ControllerBase
             {
                 ct.ThrowIfCancellationRequested();
 
-                if (string.Equals(host.Status, "NoPorts", StringComparison.OrdinalIgnoreCase)) continue;
+                // ✅ Evitar ruido: no persistir NoPorts
+                if (string.Equals(host.Status, "NoPorts", StringComparison.OrdinalIgnoreCase))
+                    continue;
 
                 var asset = await _db.SystemAssets
                     .FirstOrDefaultAsync(x =>
@@ -236,7 +264,7 @@ public class ScansController : ControllerBase
             Console.ResetColor();
 
             await _db.SaveChangesAsync(ct);
-            
+
             var totalAssets = await _db.SystemAssets.CountAsync(ct);
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"[SCAN] SaveChanges OK. Total SystemAssets now = {totalAssets}");
@@ -247,7 +275,7 @@ public class ScansController : ControllerBase
     }
 
     // -----------------------------
-    // Helpers (A3) - a nivel de clase
+    // Helpers
     // -----------------------------
     private static string NormalizeApplyMode(string? mode)
     {
