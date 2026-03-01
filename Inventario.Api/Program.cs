@@ -13,7 +13,10 @@ builder.Services.AddDbContext<InventarioDbContext>(options =>
 // Servicios
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.CustomSchemaIds(type => type.FullName);
+});
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<ISecretProtector, SecretProtector>();
 
