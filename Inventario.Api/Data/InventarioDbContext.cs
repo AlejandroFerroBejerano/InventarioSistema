@@ -15,6 +15,7 @@ public class InventarioDbContext : DbContext
     public DbSet<InstallationCredential> InstallationCredentials => Set<InstallationCredential>();
     public DbSet<SystemAsset> SystemAssets => Set<SystemAsset>();
     public DbSet<Network> Networks => Set<Network>();
+    public DbSet<ScanRun> ScanRuns => Set<ScanRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -95,6 +96,26 @@ public class InventarioDbContext : DbContext
             // Unicidad: no repetir nombre ni CIDR dentro de la instalación
             entity.HasIndex(x => new { x.InstallationId, x.Name }).IsUnique();
             entity.HasIndex(x => new { x.InstallationId, x.Cidr }).IsUnique();
+        });
+
+        // ----------------------------
+        // ScanRun (histórico de escaneos)
+        // ----------------------------
+        modelBuilder.Entity<ScanRun>(entity =>
+        {
+            entity.Property(x => x.NetworkCidr)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.HasOne(x => x.Installation)
+                .WithMany()
+                .HasForeignKey(x => x.InstallationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Network)
+                .WithMany()
+                .HasForeignKey(x => x.NetworkId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
