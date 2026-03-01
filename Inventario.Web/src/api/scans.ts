@@ -2,14 +2,16 @@ import { http } from "./http";
 
 export type StartScanRequest = {
   abonadoMm: string;
-  networkCidr: string;
-  applyMode?: "LastWins" | "NoDegrade" | "Review";
+  networkCidr: string;      // lo mantenemos por compatibilidad
+  networkId?: number | null; // ✅ nuevo
+  protocols?: string[];
   ports?: number[];
   connectTimeoutMs?: number;
   maxConcurrency?: number;
   useSsdp?: boolean;
   ssdpListenMs?: number;
-  protocols?: string[];
+  scope?: string | null;
+  applyMode?: "LastWins" | "NoDegrade" | "Review";
 };
 
 export type ScanHostResultDto = {
