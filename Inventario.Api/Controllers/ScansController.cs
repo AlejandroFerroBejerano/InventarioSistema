@@ -186,6 +186,35 @@ public class ScansController : ControllerBase
         response.FinishedAt = DateTime.UtcNow;
 
         // -----------------------------
+        // Persistencia: ScanRun (histórico de ejecuciones)
+        // -----------------------------
+        var totalHosts = hosts.Count;
+        var noPortsCount = hosts.Count(h => string.Equals(h.Status, "NoPorts", StringComparison.OrdinalIgnoreCase));
+        var identifiedCount = hosts.Count(h => string.Equals(h.Status, "Identified", StringComparison.OrdinalIgnoreCase));
+        var authenticatedCount = hosts.Count(h => string.Equals(h.Status, "Authenticated", StringComparison.OrdinalIgnoreCase));
+
+        var scanRun = new ScanRun
+        {
+            InstallationId = installationId.Value, // ya lo tienes calculado en tu controller
+            NetworkId = request.NetworkId,          // puede ser null si venía CIDR directo
+            NetworkCidr = response.NetworkCidr,
+            StartedAt = response.StartedAt,
+            FinishedAt = response.FinishedAt,
+            TotalHosts = totalHosts,
+            NoPortsCount = noPortsCount,
+            IdentifiedCount = identifiedCount,
+            AuthenticatedCount = authenticatedCount,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.ScanRuns.Add(scanRun);
+        await _db.SaveChangesAsync(ct);
+
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"[SCAN] ScanRun saved. Id={scanRun.Id} Total={scanRun.TotalHosts} Auth={scanRun.AuthenticatedCount} Ident={scanRun.IdentifiedCount} NoPorts={scanRun.NoPortsCount}");
+        Console.ResetColor();
+
+        // -----------------------------
         // Persistencia: SystemAssets (UPSERT) según ApplyMode
         // -----------------------------
         var installation = await _db.Installations
