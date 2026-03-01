@@ -16,6 +16,7 @@ public class InventarioDbContext : DbContext
     public DbSet<SystemAsset> SystemAssets => Set<SystemAsset>();
     public DbSet<Network> Networks => Set<Network>();
     public DbSet<ScanRun> ScanRuns => Set<ScanRun>();
+    public DbSet<ScanHostResult> ScanHostResults => Set<ScanHostResult>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -116,6 +117,31 @@ public class InventarioDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.NetworkId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----------------------------
+        // ScanHostResult (detalle por host en cada ScanRun)
+        // ----------------------------
+        modelBuilder.Entity<ScanHostResult>(entity =>
+        {
+            entity.Property(x => x.IpAddress)
+                .HasMaxLength(45)
+                .IsRequired();
+
+            entity.Property(x => x.Status)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            entity.Property(x => x.OpenPortsJson)
+                .IsRequired();
+
+            entity.HasOne(x => x.ScanRun)
+                .WithMany()
+                .HasForeignKey(x => x.ScanRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Evitar duplicados por run+ip
+            entity.HasIndex(x => new { x.ScanRunId, x.IpAddress }).IsUnique();
         });
     }
 }

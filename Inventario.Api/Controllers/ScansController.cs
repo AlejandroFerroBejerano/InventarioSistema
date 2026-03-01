@@ -214,6 +214,26 @@ public class ScansController : ControllerBase
         Console.WriteLine($"[SCAN] ScanRun saved. Id={scanRun.Id} Total={scanRun.TotalHosts} Auth={scanRun.AuthenticatedCount} Ident={scanRun.IdentifiedCount} NoPorts={scanRun.NoPortsCount}");
         Console.ResetColor();
 
+        var hostResults = hosts.Select(h => new ScanHostResult
+        {
+            ScanRunId = scanRun.Id,
+            IpAddress = h.Ip,
+            Status = string.IsNullOrWhiteSpace(h.Status) ? "Found" : h.Status!,
+            OpenPortsJson = JsonSerializer.Serialize(h.OpenPorts ?? new List<int>()),
+            Manufacturer = h.Manufacturer,
+            Model = h.Model,
+            Firmware = h.Firmware,
+            SerialNumber = h.SerialNumber,
+            Protocol = h.Protocol,
+            WebPort = h.WebPort,
+            SdkPort = h.SdkPort,
+            CredentialId = h.CredentialId,
+            CreatedAt = DateTime.UtcNow
+        }).ToList();
+
+        _db.ScanHostResults.AddRange(hostResults);
+        await _db.SaveChangesAsync(ct);
+
         // -----------------------------
         // Persistencia: SystemAssets (UPSERT) según ApplyMode
         // -----------------------------
