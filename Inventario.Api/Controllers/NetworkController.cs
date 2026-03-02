@@ -1,5 +1,6 @@
 using Inventario.Api.Data;
 using Inventario.Api.Entities;
+using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +19,9 @@ public class NetworksController : ControllerBase
 
     // GET /api/networks?abonadoMm=MM00000001
     [HttpGet]
-    public async Task<ActionResult<List<NetworkDto>>> Get([FromQuery] string abonadoMm, CancellationToken ct)
+    public async Task<ActionResult<List<NetworkDto>>> Get(
+        [FromQuery] string abonadoMm,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(abonadoMm))
             return BadRequest("abonadoMm is required");
@@ -50,12 +53,16 @@ public class NetworksController : ControllerBase
 
     // POST /api/networks
     [HttpPost]
-    public async Task<ActionResult<NetworkDto>> Create([FromBody] CreateNetworkRequest req, CancellationToken ct)
+    public async Task<ActionResult<NetworkDto>> Create(
+        [FromBody] CreateNetworkRequest req,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(req.AbonadoMm))
             return BadRequest("abonadoMm is required");
+
         if (string.IsNullOrWhiteSpace(req.Name))
             return BadRequest("name is required");
+
         if (string.IsNullOrWhiteSpace(req.Cidr))
             return BadRequest("cidr is required");
 
@@ -85,7 +92,6 @@ public class NetworksController : ControllerBase
         }
         catch (DbUpdateException)
         {
-            // por índices únicos (Name/Cidr por instalación)
             return Conflict("Network with same Name or Cidr already exists for this abonadoMm");
         }
 
@@ -97,14 +103,18 @@ public class NetworksController : ControllerBase
             IsActive = entity.IsActive
         };
 
-        return Ok(dto);
+        return CreatedAtAction(nameof(Get), new { abonadoMm = req.AbonadoMm }, dto);
     }
 
     // PUT /api/networks/{id}
     [HttpPut("{id:int}")]
-    public async Task<ActionResult<NetworkDto>> Update(int id, [FromBody] UpdateNetworkRequest req, CancellationToken ct)
+    public async Task<ActionResult<NetworkDto>> Update(
+        int id,
+        [FromBody] UpdateNetworkRequest req,
+        CancellationToken ct)
     {
         var entity = await _db.Networks.FirstOrDefaultAsync(n => n.Id == id, ct);
+
         if (entity is null)
             return NotFound();
 
@@ -139,19 +149,77 @@ public class NetworksController : ControllerBase
 
     // DELETE /api/networks/{id}
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    public async Task<IActionResult> Delete(
+        int id,
+        [FromBody] DeleteConfirmationDto dto,
+        CancellationToken ct)
     {
-        var entity = await _db.Networks.FirstOrDefaultAsync(n => n.Id == id, ct);
-        if (entity is null)
-            return NotFound();
+        if (dto?.Confirmation?.Trim().ToLowerInvariant() != "delete")
+            return BadRequest(new { message = "Confirmation text must be 'delete'." });
 
-        _db.Networks.Remove(entity);
+        var network = await _db.Networks.FirstOrDefaultAsync(n => n.Id == id, ct);
+
+        if (network is null)
+            return NotFound(new { message = "Network not found." });
+
+        // Obtener ids de ScanRuns asociados
+        var scanRunIds = await _db.ScanRuns
+            .Where(r => r.NetworkId == id)
+            .Select(r => r.Id)
+            .ToListAsync(ct);
+
+        var scanRunsCount = scanRunIds.Count;
+
+        var hostResultsCount = await _db.ScanHostResults
+            .Where(h => scanRunIds.Contains(h.ScanRunId))
+            .CountAsync(ct);
+
+        _db.Networks.Remove(network);
         await _db.SaveChangesAsync(ct);
 
-        return NoContent();
+        return Ok(new
+        {
+            message = "Network deleted successfully.",
+            deletedNetworkId = id,
+            deletedScanRuns = scanRunsCount,
+            deletedHostResults = hostResultsCount
+        });
+    }
+
+    // GET /api/networks/{id}/delete-preview
+    [HttpGet("{id:int}/delete-preview")]
+    public async Task<IActionResult> DeletePreview(int id, CancellationToken ct)
+    {
+        var network = await _db.Networks
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == id, ct);
+
+        if (network is null)
+            return NotFound(new { message = "Network not found." });
+
+        var scanRunIds = await _db.ScanRuns
+            .AsNoTracking()
+            .Where(r => r.NetworkId == id)
+            .Select(r => r.Id)
+            .ToListAsync(ct);
+
+        var scanRunsCount = scanRunIds.Count;
+
+        var hostResultsCount = await _db.ScanHostResults
+            .AsNoTracking()
+            .Where(h => scanRunIds.Contains(h.ScanRunId))
+            .CountAsync(ct);
+
+        return Ok(new
+        {
+            networkId = network.Id,
+            networkName = network.Name,
+            networkCidr = network.Cidr,
+            scanRunsToDelete = scanRunsCount,
+            hostResultsToDelete = hostResultsCount
+        });
     }
 }
-
 public class NetworkDto
 {
     public int Id { get; set; }

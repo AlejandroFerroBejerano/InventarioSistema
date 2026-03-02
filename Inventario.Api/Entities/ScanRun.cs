@@ -13,12 +13,12 @@ public class ScanRun
     public string NetworkCidr { get; set; } = default!;
 
     public DateTime StartedAt { get; set; }
-    public DateTime FinishedAt { get; set; }
+    public DateTime? FinishedAt { get; set; }
 
     public int TotalHosts { get; set; }
     public int AuthenticatedCount { get; set; }
     public int IdentifiedCount { get; set; }
     public int NoPortsCount { get; set; }
-
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<ScanHostResult> HostResults { get; set; } = new List<ScanHostResult>();
 }

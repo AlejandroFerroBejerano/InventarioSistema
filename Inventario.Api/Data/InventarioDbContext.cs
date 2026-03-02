@@ -116,7 +116,7 @@ public class InventarioDbContext : DbContext
             entity.HasOne(x => x.Network)
                 .WithMany()
                 .HasForeignKey(x => x.NetworkId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----------------------------
@@ -136,7 +136,7 @@ public class InventarioDbContext : DbContext
                 .IsRequired();
 
             entity.HasOne(x => x.ScanRun)
-                .WithMany()
+                .WithMany(sr => sr.HostResults)
                 .HasForeignKey(x => x.ScanRunId)
                 .OnDelete(DeleteBehavior.Cascade);
 
