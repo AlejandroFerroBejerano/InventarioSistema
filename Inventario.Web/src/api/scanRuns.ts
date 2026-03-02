@@ -39,3 +39,26 @@ export async function getScanRunHosts(scanRunId: number) {
   const res = await http.get<ScanHostResultDto[]>(`/api/scanruns/${scanRunId}/hosts`);
   return res.data;
 }
+
+export async function exportScanRunCsv(scanRunId: number) {
+  const res = await http.get<Blob>(`/api/scanruns/${scanRunId}/export.csv`, {
+    responseType: "blob",
+  });
+
+  let filename = `scanrun_${scanRunId}.csv`;
+  const contentDisposition = res.headers["content-disposition"];
+  if (contentDisposition) {
+    const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(contentDisposition);
+    if (match?.[1]) {
+      filename = decodeURIComponent(match[1].replace(/"/g, "").trim());
+    }
+  }
+
+  return { blob: res.data, filename };
+}
+
+export async function deleteScanRun(scanRunId: number, confirmation: string) {
+  await http.delete(`/api/scanruns/${scanRunId}`, {
+    data: { confirmation },
+  });
+}

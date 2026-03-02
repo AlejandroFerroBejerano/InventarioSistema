@@ -20,10 +20,12 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  IconChevronsLeft,
+  IconChevronsRight,
   IconCirclePlus,
   IconDownload,
   IconNetwork,
@@ -41,10 +43,14 @@ import {
   getNetworks,
   createNetwork,
   deleteNetwork,
+  getNetworkDeletePreview,
+  type NetworkDeletePreviewDto,
   type NetworkDto,
 } from "../../api/networks";
 
 import {
+  deleteScanRun,
+  exportScanRunCsv,
   getScanRuns,
   getScanRunHosts,
   type ScanRunListItem,
@@ -81,6 +87,10 @@ function statusBadge(status?: string | null) {
 
 function downloadTextFile(filename: string, content: string, mime: string) {
   const blob = new Blob([content], { type: mime });
+  downloadBlobFile(filename, blob);
+}
+
+function downloadBlobFile(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -156,8 +166,17 @@ export function ScanPage() {
   }, [networksQuery.data, selectedNetworkId]);
 
   const [createOpen, createModal] = useDisclosure(false);
+  const [networkDeleteOpen, networkDeleteModal] = useDisclosure(false);
   const [newName, setNewName] = useState("");
   const [newCidr, setNewCidr] = useState("192.168.1.0/24");
+  const [networkToDelete, setNetworkToDelete] = useState<NetworkDto | null>(null);
+  const [networkDeletePreview, setNetworkDeletePreview] =
+    useState<NetworkDeletePreviewDto | null>(null);
+  const [networkDeleteConfirmation, setNetworkDeleteConfirmation] = useState("");
+  const [previewingNetworkId, setPreviewingNetworkId] = useState<number | null>(null);
+  const [deletingNetworkId, setDeletingNetworkId] = useState<number | null>(null);
+  const [networksCompact, setNetworksCompact] = useState(false);
+  const isMdUp = useMediaQuery("(min-width: 62em)");
 
   const createNetworkMutation = useMutation({
     mutationFn: async () => {
@@ -184,10 +203,41 @@ export function ScanPage() {
     },
   });
 
+  const networkDeletePreviewMutation = useMutation({
+    mutationFn: (id: number) => getNetworkDeletePreview(id),
+    onMutate: (id) => {
+      setPreviewingNetworkId(id);
+    },
+    onSuccess: (preview) => {
+      setNetworkDeletePreview(preview);
+      networkDeleteModal.open();
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error obteniendo vista previa",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
+    onSettled: () => {
+      setPreviewingNetworkId(null);
+    },
+  });
+
   const deleteNetworkMutation = useMutation({
-    mutationFn: async (id: number) => deleteNetwork(id),
+    mutationFn: async (payload: { id: number; confirmation: string }) =>
+      deleteNetwork(payload.id, payload.confirmation),
+    onMutate: ({ id }) => {
+      setDeletingNetworkId(id);
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["networks", selectedAbonadoMm] });
+      await qc.invalidateQueries({ queryKey: ["scanruns", selectedAbonadoMm] });
+      setSelectedScanRunId(null);
+      setNetworkDeleteConfirmation("");
+      setNetworkDeletePreview(null);
+      setNetworkToDelete(null);
+      networkDeleteModal.close();
       notifications.show({
         title: "Red eliminada",
         message: "Se eliminó correctamente.",
@@ -199,6 +249,9 @@ export function ScanPage() {
         message: err?.message ?? "Error desconocido",
         color: "red",
       });
+    },
+    onSettled: () => {
+      setDeletingNetworkId(null);
     },
   });
 
@@ -212,11 +265,70 @@ export function ScanPage() {
   });
 
   const [selectedScanRunId, setSelectedScanRunId] = useState<number | null>(null);
+  const [scanRunDeleteOpen, scanRunDeleteModal] = useDisclosure(false);
+  const [scanRunToDelete, setScanRunToDelete] = useState<ScanRunListItem | null>(null);
+  const [scanRunDeleteConfirmation, setScanRunDeleteConfirmation] = useState("");
+  const [exportingScanRunId, setExportingScanRunId] = useState<number | null>(null);
+  const [deletingScanRunId, setDeletingScanRunId] = useState<number | null>(null);
+  const [executionsCompact, setExecutionsCompact] = useState(false);
 
   const scanRunHostsQuery = useQuery({
     queryKey: ["scanrun-hosts", selectedScanRunId],
     queryFn: () => getScanRunHosts(selectedScanRunId!),
     enabled: selectedScanRunId != null,
+  });
+
+  const exportScanRunMutation = useMutation({
+    mutationFn: (scanRunId: number) => exportScanRunCsv(scanRunId),
+    onMutate: (scanRunId) => {
+      setExportingScanRunId(scanRunId);
+    },
+    onSuccess: ({ blob, filename }) => {
+      downloadBlobFile(filename, blob);
+      notifications.show({
+        title: "CSV exportado",
+        message: "La descarga se inició correctamente.",
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error exportando CSV",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
+    onSettled: () => {
+      setExportingScanRunId(null);
+    },
+  });
+
+  const deleteScanRunMutation = useMutation({
+    mutationFn: (payload: { id: number; confirmation: string }) =>
+      deleteScanRun(payload.id, payload.confirmation),
+    onMutate: ({ id }) => {
+      setDeletingScanRunId(id);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["scanruns", selectedAbonadoMm] });
+      setSelectedScanRunId(null);
+      setScanRunDeleteConfirmation("");
+      setScanRunToDelete(null);
+      scanRunDeleteModal.close();
+      notifications.show({
+        title: "Ejecución eliminada",
+        message: "Se eliminó el histórico seleccionado.",
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error eliminando ejecución",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
+    onSettled: () => {
+      setDeletingScanRunId(null);
+    },
   });
 
   // -----------------------------
@@ -364,6 +476,22 @@ export function ScanPage() {
     return `scan_${mm}_${cidr}`;
   }, [selectedAbonadoMm, selectedNetwork?.cidr]);
 
+  const openNetworkDeleteDialog = (network: NetworkDto) => {
+    setNetworkToDelete(network);
+    setNetworkDeletePreview(null);
+    setNetworkDeleteConfirmation("");
+    networkDeletePreviewMutation.mutate(network.id);
+  };
+
+  const openScanRunDeleteDialog = (scanRun: ScanRunListItem) => {
+    setScanRunToDelete(scanRun);
+    setScanRunDeleteConfirmation("");
+    scanRunDeleteModal.open();
+  };
+
+  const networksPanelSpan = networksCompact ? 1 : 3;
+  const detailPanelSpan = networksCompact ? 11 : 9;
+
   return (
     <Stack gap="md">
       <Modal opened={createOpen} onClose={createModal.close} title="Nueva red" centered>
@@ -407,6 +535,163 @@ export function ScanPage() {
               }}
             >
               Crear
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={networkDeleteOpen}
+        onClose={() => {
+          if (!deleteNetworkMutation.isPending) {
+            networkDeleteModal.close();
+            setNetworkDeleteConfirmation("");
+            setNetworkDeletePreview(null);
+            setNetworkToDelete(null);
+          }
+        }}
+        title="Eliminar red"
+        centered
+      >
+        <Stack>
+          <Text>
+            Se eliminará esta red y sus resultados asociados.
+            <br />
+            El inventario NO se modificará.
+          </Text>
+
+          <Card withBorder radius="md" p="sm">
+            <Text fw={600}>{networkDeletePreview?.networkName ?? networkToDelete?.name ?? "-"}</Text>
+            <Text c="dimmed" size="sm">
+              {networkDeletePreview?.networkCidr ?? networkToDelete?.cidr ?? "-"}
+            </Text>
+            <Text mt="sm" size="sm">
+              ScanRuns a borrar:{" "}
+              <Text span fw={700}>
+                <NumberFormatter thousandSeparator value={networkDeletePreview?.scanRunsToDelete ?? 0} />
+              </Text>
+            </Text>
+            <Text size="sm">
+              HostResults a borrar:{" "}
+              <Text span fw={700}>
+                <NumberFormatter
+                  thousandSeparator
+                  value={networkDeletePreview?.hostResultsToDelete ?? 0}
+                />
+              </Text>
+            </Text>
+          </Card>
+
+          <TextInput
+            label="Escribe delete para confirmar"
+            placeholder="delete"
+            value={networkDeleteConfirmation}
+            onChange={(e) => setNetworkDeleteConfirmation(e.currentTarget.value)}
+            disabled={deleteNetworkMutation.isPending}
+          />
+
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => {
+                networkDeleteModal.close();
+                setNetworkDeleteConfirmation("");
+                setNetworkDeletePreview(null);
+                setNetworkToDelete(null);
+              }}
+              disabled={deleteNetworkMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              color="red"
+              loading={deleteNetworkMutation.isPending}
+              disabled={
+                !networkToDelete ||
+                networkDeleteConfirmation.trim().toLowerCase() !== "delete"
+              }
+              onClick={() => {
+                if (!networkToDelete) return;
+                deleteNetworkMutation.mutate({
+                  id: networkToDelete.id,
+                  confirmation: "delete",
+                });
+              }}
+            >
+              Eliminar red
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={scanRunDeleteOpen}
+        onClose={() => {
+          if (!deleteScanRunMutation.isPending) {
+            scanRunDeleteModal.close();
+            setScanRunDeleteConfirmation("");
+            setScanRunToDelete(null);
+          }
+        }}
+        title="Eliminar ejecución"
+        centered
+      >
+        <Stack>
+          <Text>
+            Se eliminará esta ejecución y sus resultados.
+            <br />
+            El inventario NO se modificará.
+          </Text>
+
+          <Card withBorder radius="md" p="sm">
+            <Text fw={600}>Run #{scanRunToDelete?.id ?? "-"}</Text>
+            <Text size="sm" c="dimmed">
+              Inicio:{" "}
+              {scanRunToDelete?.startedAt
+                ? new Date(scanRunToDelete.startedAt).toLocaleString()
+                : "-"}
+            </Text>
+            <Text size="sm" c="dimmed">
+              Red: {scanRunToDelete?.networkCidr ?? "-"}
+            </Text>
+          </Card>
+
+          <TextInput
+            label="Escribe delete para confirmar"
+            placeholder="delete"
+            value={scanRunDeleteConfirmation}
+            onChange={(e) => setScanRunDeleteConfirmation(e.currentTarget.value)}
+            disabled={deleteScanRunMutation.isPending}
+          />
+
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => {
+                scanRunDeleteModal.close();
+                setScanRunDeleteConfirmation("");
+                setScanRunToDelete(null);
+              }}
+              disabled={deleteScanRunMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              color="red"
+              loading={deleteScanRunMutation.isPending}
+              disabled={
+                !scanRunToDelete ||
+                scanRunDeleteConfirmation.trim().toLowerCase() !== "delete"
+              }
+              onClick={() => {
+                if (!scanRunToDelete) return;
+                deleteScanRunMutation.mutate({
+                  id: scanRunToDelete.id,
+                  confirmation: "delete",
+                });
+              }}
+            >
+              Eliminar ejecución
             </Button>
           </Group>
         </Stack>
@@ -482,22 +767,74 @@ export function ScanPage() {
       {/* App-like 2-column layout: left networks, right detail */}
       <SimpleGrid cols={{ base: 1, md: 12 }} spacing="md">
         {/* Left panel: networks */}
-        <Card withBorder radius="lg" p="md" style={{ gridColumn: "span 3" }}>
+        <Card
+          withBorder
+          radius="lg"
+          p="md"
+          className="networks-panel"
+          style={{
+            gridColumn: `span ${networksPanelSpan}`,
+            width: isMdUp && networksCompact ? 72 : undefined,
+            minWidth: isMdUp && networksCompact ? 72 : undefined,
+            maxWidth: isMdUp && networksCompact ? 72 : undefined,
+            justifySelf: networksCompact ? "start" : undefined,
+          }}
+        >
+          <ActionIcon
+            className="sidebar-toggle"
+            variant="light"
+            radius="xl"
+            size="sm"
+            onClick={() => setNetworksCompact((v) => !v)}
+            aria-label={networksCompact ? "Expandir panel de redes" : "Condensar panel de redes"}
+          >
+            {networksCompact ? <IconChevronsRight size={16} /> : <IconChevronsLeft size={16} />}
+          </ActionIcon>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconNetwork size={18} />
-              <Text fw={600}>Redes</Text>
+              {!networksCompact && <Text fw={600}>Redes</Text>}
             </Group>
-            <ActionIcon
-              variant="subtle"
-              onClick={createModal.open}
-              aria-label="Nueva red"
-              disabled={!Boolean((selectedAbonadoMm ?? "").trim())}
-            >
-              <IconCirclePlus size={18} />
-            </ActionIcon>
+            {!networksCompact && (
+              <ActionIcon
+                variant="subtle"
+                onClick={createModal.open}
+                aria-label="Nueva red"
+                disabled={!Boolean((selectedAbonadoMm ?? "").trim())}
+              >
+                <IconCirclePlus size={18} />
+              </ActionIcon>
+            )}
           </Group>
 
+          {networksCompact ? (
+            <Stack gap="xs" align="center">
+              <ActionIcon
+                variant="subtle"
+                onClick={createModal.open}
+                aria-label="Nueva red"
+                disabled={!Boolean((selectedAbonadoMm ?? "").trim())}
+              >
+                <IconCirclePlus size={18} />
+              </ActionIcon>
+              {(networksQuery.data ?? []).map((n) => {
+                const active = n.id === selectedNetworkId;
+                return (
+                  <Tooltip key={n.id} label={`${n.name} · ${n.cidr}`} position="right">
+                    <ActionIcon
+                      size="lg"
+                      variant={active ? "light" : "subtle"}
+                      color={active ? "indigo" : undefined}
+                      onClick={() => setSelectedNetworkId(n.id)}
+                      aria-label={`Seleccionar red ${n.name}`}
+                    >
+                      <IconNetwork size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                );
+              })}
+            </Stack>
+          ) : (
           <ScrollArea h={420} offsetScrollbars>
             <Stack gap={6}>
               {networksQuery.isLoading ? (
@@ -538,11 +875,11 @@ export function ScanPage() {
                           variant="subtle"
                           color="red"
                           aria-label="Eliminar"
-                          loading={deleteNetworkMutation.isPending}
+                          loading={previewingNetworkId === n.id || deletingNetworkId === n.id}
+                          disabled={networkDeletePreviewMutation.isPending}
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteNetworkMutation.mutate(n.id);
-                            // si borras la seleccionada, se reajusta por el useEffect al refrescar query
+                            openNetworkDeleteDialog(n);
                           }}
                         >
                           <IconTrash size={16} />
@@ -554,10 +891,11 @@ export function ScanPage() {
               )}
             </Stack>
           </ScrollArea>
+          )}
         </Card>
 
         {/* Right panel: selected network detail + grouped results */}
-        <Stack style={{ gridColumn: "span 9" }} gap="md">
+        <Stack style={{ gridColumn: `span ${detailPanelSpan}` }} gap="md">
           <Card withBorder radius="lg" p="lg">
             <Group justify="space-between" align="flex-start">
               <Box>
@@ -836,16 +1174,38 @@ export function ScanPage() {
                 ) : (scanRunsQuery.data?.length ?? 0) === 0 ? (
                   <Text c="dimmed">Sin ejecuciones aún.</Text>
                 ) : (
-                  <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
-                    <Card withBorder radius="md" p="md">
+                  <SimpleGrid cols={{ base: 1, md: 12 }} spacing="md">
+                    <Card
+                      withBorder
+                      radius="md"
+                      p="md"
+                      style={{ gridColumn: executionsCompact ? "span 3" : "span 5" }}
+                    >
                       <Group justify="space-between" mb="sm">
                         <Text fw={600}>Ejecuciones</Text>
-                        <Badge variant="light">
-                          <NumberFormatter
-                            thousandSeparator
-                            value={scanRunsQuery.data?.length ?? 0}
-                          />
-                        </Badge>
+                        <Group gap={6}>
+                          <Badge variant="light">
+                            <NumberFormatter
+                              thousandSeparator
+                              value={scanRunsQuery.data?.length ?? 0}
+                            />
+                          </Badge>
+                          <ActionIcon
+                            variant="light"
+                            aria-label={
+                              executionsCompact
+                                ? "Expandir columnas de ejecuciones"
+                                : "Condensar columnas de ejecuciones"
+                            }
+                            onClick={() => setExecutionsCompact((v) => !v)}
+                          >
+                            {executionsCompact ? (
+                              <IconChevronsRight size={16} />
+                            ) : (
+                              <IconChevronsLeft size={16} />
+                            )}
+                          </ActionIcon>
+                        </Group>
                       </Group>
 
                       <ScrollArea h={280}>
@@ -853,10 +1213,11 @@ export function ScanPage() {
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th>Inicio</Table.Th>
-                              <Table.Th>Red</Table.Th>
-                              <Table.Th>Auth</Table.Th>
-                              <Table.Th>Id</Table.Th>
-                              <Table.Th>NoPorts</Table.Th>
+                              {!executionsCompact && <Table.Th>Red</Table.Th>}
+                              {!executionsCompact && <Table.Th>Auth</Table.Th>}
+                              {!executionsCompact && <Table.Th>Id</Table.Th>}
+                              {!executionsCompact && <Table.Th>NoPorts</Table.Th>}
+                              <Table.Th>Acciones</Table.Th>
                             </Table.Tr>
                           </Table.Thead>
                           <Table.Tbody>
@@ -873,10 +1234,39 @@ export function ScanPage() {
                                 onClick={() => setSelectedScanRunId(r.id)}
                               >
                                 <Table.Td>{new Date(r.startedAt).toLocaleString()}</Table.Td>
-                                <Table.Td>{r.networkCidr}</Table.Td>
-                                <Table.Td>{r.authenticatedCount}</Table.Td>
-                                <Table.Td>{r.identifiedCount}</Table.Td>
-                                <Table.Td>{r.noPortsCount}</Table.Td>
+                                {!executionsCompact && <Table.Td>{r.networkCidr}</Table.Td>}
+                                {!executionsCompact && <Table.Td>{r.authenticatedCount}</Table.Td>}
+                                {!executionsCompact && <Table.Td>{r.identifiedCount}</Table.Td>}
+                                {!executionsCompact && <Table.Td>{r.noPortsCount}</Table.Td>}
+                                <Table.Td>
+                                  <Group gap={6} wrap="nowrap">
+                                    <ActionIcon
+                                      variant="subtle"
+                                      aria-label="Exportar CSV"
+                                      loading={exportingScanRunId === r.id}
+                                      disabled={deleteScanRunMutation.isPending}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        exportScanRunMutation.mutate(r.id);
+                                      }}
+                                    >
+                                      <IconDownload size={16} />
+                                    </ActionIcon>
+                                    <ActionIcon
+                                      variant="subtle"
+                                      color="red"
+                                      aria-label="Eliminar ejecución"
+                                      loading={deletingScanRunId === r.id}
+                                      disabled={deleteScanRunMutation.isPending}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openScanRunDeleteDialog(r);
+                                      }}
+                                    >
+                                      <IconTrash size={16} />
+                                    </ActionIcon>
+                                  </Group>
+                                </Table.Td>
                               </Table.Tr>
                             ))}
                           </Table.Tbody>
@@ -884,7 +1274,12 @@ export function ScanPage() {
                       </ScrollArea>
                     </Card>
 
-                    <Card withBorder radius="md" p="md">
+                    <Card
+                      withBorder
+                      radius="md"
+                      p="md"
+                      style={{ gridColumn: executionsCompact ? "span 9" : "span 7" }}
+                    >
                       <Text fw={600} mb="sm">
                         Hosts{" "}
                         {selectedScanRunId != null ? `(Run #${selectedScanRunId})` : ""}

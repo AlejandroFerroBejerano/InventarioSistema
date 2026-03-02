@@ -8,6 +8,14 @@ export type NetworkDto = {
   createdAt: string;
 };
 
+export type NetworkDeletePreviewDto = {
+  networkId: number;
+  networkName: string;
+  networkCidr: string;
+  scanRunsToDelete: number;
+  hostResultsToDelete: number;
+};
+
 export async function getNetworks(abonadoMm: string) {
   const res = await http.get<NetworkDto[]>("/api/networks", { params: { abonadoMm } });
   return res.data;
@@ -18,6 +26,13 @@ export async function createNetwork(abonadoMm: string, name: string, cidr: strin
   return res.data;
 }
 
-export async function deleteNetwork(id: number) {
-  await http.delete(`/api/networks/${id}`);
+export async function getNetworkDeletePreview(id: number) {
+  const res = await http.get<NetworkDeletePreviewDto>(`/api/networks/${id}/delete-preview`);
+  return res.data;
+}
+
+export async function deleteNetwork(id: number, confirmation: string) {
+  await http.delete(`/api/networks/${id}`, {
+    data: { confirmation },
+  });
 }
