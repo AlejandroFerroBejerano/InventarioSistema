@@ -3,20 +3,56 @@ import {
   AppShell,
   Badge,
   Burger,
+  Button,
+  Divider,
   Group,
+  Menu,
   NavLink,
   Tabs,
   Text,
   Title,
+  useMantineColorScheme,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconActivity, IconKey, IconNetwork } from "@tabler/icons-react";
+import {
+  IconActivity,
+  IconCheck,
+  IconDeviceDesktop,
+  IconKey,
+  IconMoon,
+  IconNetwork,
+  IconPalette,
+  IconShieldLock,
+  IconSparkles,
+  IconSun,
+} from "@tabler/icons-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAppTheme, type AppStylePreset } from "../app/theme/AppThemeContext";
 
 type Props = { children: ReactNode };
 
+const styleOptions: { value: AppStylePreset; label: string; icon: ReactNode }[] = [
+  {
+    value: "tech-corporate",
+    label: "Tech Corporativo",
+    icon: <IconPalette size={15} />,
+  },
+  {
+    value: "soc-professional",
+    label: "Profesional SOC",
+    icon: <IconShieldLock size={15} />,
+  },
+  {
+    value: "premium-enterprise",
+    label: "Premium Enterprise",
+    icon: <IconSparkles size={15} />,
+  },
+];
+
 export function AppShellLayout({ children }: Props) {
   const [opened, { toggle }] = useDisclosure();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
+  const { stylePreset, setStylePreset } = useAppTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -49,7 +85,6 @@ export function AppShellLayout({ children }: Props) {
             </Group>
           </Group>
 
-          {/* Horizontal primary navigation (desktop). */}
           <Tabs
             value={activeTopTab}
             onChange={(v) => v && navigate(v)}
@@ -70,13 +105,60 @@ export function AppShellLayout({ children }: Props) {
             </Tabs.List>
           </Tabs>
 
-          <Text c="dimmed" size="sm" visibleFrom="sm">
-            Panel de red · Inventario
-          </Text>
+          <Menu position="bottom-end" shadow="md" width={280} withArrow>
+            <Menu.Target>
+              <Button variant="subtle" leftSection={<IconPalette size={16} />} size="sm">
+                Tema
+              </Button>
+            </Menu.Target>
+
+            <Menu.Dropdown>
+              <Menu.Label>Modo de color</Menu.Label>
+              <Menu.Item
+                leftSection={<IconSun size={16} />}
+                rightSection={colorScheme === "light" ? <IconCheck size={14} /> : null}
+                onClick={() => setColorScheme("light")}
+              >
+                Claro
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconMoon size={16} />}
+                rightSection={colorScheme === "dark" ? <IconCheck size={14} /> : null}
+                onClick={() => setColorScheme("dark")}
+              >
+                Oscuro
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconDeviceDesktop size={16} />}
+                rightSection={colorScheme === "auto" ? <IconCheck size={14} /> : null}
+                onClick={() => setColorScheme("auto")}
+              >
+                Auto (sistema)
+              </Menu.Item>
+
+              <Divider my="xs" />
+
+              <Menu.Label>Estilo visual</Menu.Label>
+              {styleOptions.map((option) => (
+                <Menu.Item
+                  key={option.value}
+                  leftSection={option.icon}
+                  rightSection={stylePreset === option.value ? <IconCheck size={14} /> : null}
+                  onClick={() => setStylePreset(option.value)}
+                >
+                  {option.label}
+                </Menu.Item>
+              ))}
+
+              <Divider my="xs" />
+              <Text px="sm" py={4} c="dimmed" size="xs">
+                El modo y estilo quedan guardados para futuras sesiones.
+              </Text>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
       </AppShell.Header>
 
-      {/* Vertical secondary navigation (always available; collapses on mobile). */}
       <AppShell.Navbar p="sm">
         <NavLink
           label="Escaneo"
@@ -102,3 +184,4 @@ export function AppShellLayout({ children }: Props) {
     </AppShell>
   );
 }
+

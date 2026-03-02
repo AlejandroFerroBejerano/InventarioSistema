@@ -482,7 +482,7 @@ export function ScanPage() {
       {/* App-like 2-column layout: left networks, right detail */}
       <SimpleGrid cols={{ base: 1, md: 12 }} spacing="md">
         {/* Left panel: networks */}
-        <Card withBorder radius="lg" p="md" style={{ gridColumn: "span 4" }}>
+        <Card withBorder radius="lg" p="md" style={{ gridColumn: "span 3" }}>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconNetwork size={18} />
@@ -519,7 +519,9 @@ export function ScanPage() {
                       p="sm"
                       style={{
                         cursor: "pointer",
-                        borderColor: active ? "var(--mantine-color-indigo-5)" : undefined,
+                        borderColor: active
+                          ? "light-dark(var(--mantine-color-indigo-5), var(--mantine-color-indigo-4))"
+                          : undefined,
                       }}
                       onClick={() => setSelectedNetworkId(n.id)}
                     >
@@ -555,7 +557,7 @@ export function ScanPage() {
         </Card>
 
         {/* Right panel: selected network detail + grouped results */}
-        <Stack style={{ gridColumn: "span 8" }} gap="md">
+        <Stack style={{ gridColumn: "span 9" }} gap="md">
           <Card withBorder radius="lg" p="lg">
             <Group justify="space-between" align="flex-start">
               <Box>
@@ -865,7 +867,7 @@ export function ScanPage() {
                                   cursor: "pointer",
                                   background:
                                     selectedScanRunId === r.id
-                                      ? "var(--mantine-color-gray-1)"
+                                      ? "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
                                       : undefined,
                                 }}
                                 onClick={() => setSelectedScanRunId(r.id)}

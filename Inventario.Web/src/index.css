@@ -4,6 +4,13 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --app-bg: #f8fafc;
+  --app-surface: #ffffff;
+  --app-navbar: #f1f5f9;
+  --app-border: #e2e8f0;
+  --app-text: #0f172a;
+  --app-text-dimmed: #64748b;
 }
 
 html,
@@ -14,9 +21,84 @@ body,
 
 body {
   margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 /* Prevent long tables/cards from overflowing on small screens */
 * {
   box-sizing: border-box;
+}
+
+[data-mantine-color-scheme="dark"][data-app-style="tech-corporate"] {
+  --app-bg: #0f172a;
+  --app-surface: #1e293b;
+  --app-navbar: #111827;
+  --app-border: #334155;
+  --app-text: #e2e8f0;
+  --app-text-dimmed: #94a3b8;
+}
+
+[data-mantine-color-scheme="light"][data-app-style="tech-corporate"] {
+  --app-bg: #f1f5f9;
+  --app-surface: #ffffff;
+  --app-navbar: #e2e8f0;
+  --app-border: #cbd5e1;
+  --app-text: #0f172a;
+  --app-text-dimmed: #475569;
+}
+
+[data-mantine-color-scheme="dark"][data-app-style="soc-professional"] {
+  --app-bg: #0b1220;
+  --app-surface: #141b2d;
+  --app-navbar: #0a1020;
+  --app-border: #243248;
+  --app-text: #e6edf7;
+  --app-text-dimmed: #8ea0ba;
+}
+
+[data-mantine-color-scheme="light"][data-app-style="soc-professional"] {
+  --app-bg: #eef5fb;
+  --app-surface: #ffffff;
+  --app-navbar: #dce9f5;
+  --app-border: #bfd3e5;
+  --app-text: #0f172a;
+  --app-text-dimmed: #607089;
+}
+
+[data-mantine-color-scheme="dark"][data-app-style="premium-enterprise"] {
+  --app-bg: #111827;
+  --app-surface: #1f2937;
+  --app-navbar: #0f172a;
+  --app-border: #374151;
+  --app-text: #f9fafb;
+  --app-text-dimmed: #cbd5e1;
+}
+
+[data-mantine-color-scheme="light"][data-app-style="premium-enterprise"] {
+  --app-bg: #f5f7fb;
+  --app-surface: #ffffff;
+  --app-navbar: #e8ecf5;
+  --app-border: #ced6e5;
+  --app-text: #111827;
+  --app-text-dimmed: #64748b;
+}
+
+.mantine-AppShell-root {
+  background: var(--app-bg);
+}
+
+.mantine-AppShell-header,
+.mantine-AppShell-navbar {
+  background: var(--app-navbar);
+  border-color: var(--app-border);
+}
+
+.mantine-AppShell-main {
+  background: var(--app-bg);
+}
+
+.mantine-Card-root {
+  background: var(--app-surface);
+  border-color: var(--app-border);
 }
