@@ -1,9 +1,10 @@
 using Inventario.Api.Data;
+using Inventario.Api.Entities;
+using Inventario.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
-using Inventario.Api.Models;
 using System.Text;
+using System.Text.Json;
 
 namespace Inventario.Api.Controllers;
 
@@ -18,9 +19,9 @@ public class ScanRunsController : ControllerBase
         _db = db;
     }
 
-    // GET /api/scanruns?abonadoMm=MM00000003
+    // GET /api/scanruns?abonadoMm=MM00000003&networkId=123
     [HttpGet]
-    public async Task<ActionResult> Get([FromQuery] string abonadoMm, CancellationToken ct)
+    public async Task<ActionResult> Get([FromQuery] string abonadoMm, [FromQuery] int? networkId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(abonadoMm))
             return BadRequest("abonadoMm is required");
@@ -34,9 +35,28 @@ public class ScanRunsController : ControllerBase
         if (!installationId.HasValue)
             return Ok(Array.Empty<object>());
 
-        var items = await _db.ScanRuns
+        var query = _db.ScanRuns
             .AsNoTracking()
-            .Where(r => r.InstallationId == installationId.Value)
+            .Where(r => r.InstallationId == installationId.Value);
+
+        if (networkId.HasValue)
+        {
+            // Fallback por CIDR para runs históricos que no tenían NetworkId
+            var selectedNetwork = await _db.Networks
+                .AsNoTracking()
+                .Where(n => n.Id == networkId.Value && n.InstallationId == installationId.Value)
+                .Select(n => new { n.Cidr })
+                .FirstOrDefaultAsync(ct);
+
+            if (selectedNetwork is null)
+                return Ok(Array.Empty<object>());
+
+            query = query.Where(r =>
+                r.NetworkId == networkId.Value ||
+                (r.NetworkId == null && r.NetworkCidr == selectedNetwork.Cidr));
+        }
+
+        var items = await query
             .OrderByDescending(r => r.StartedAt)
             .Select(r => new
             {
@@ -95,6 +115,154 @@ public class ScanRunsController : ControllerBase
         return Ok(items);
     }
 
+    // POST /api/scanruns/{id}/apply?mode=NoDegrade|LastWins
+    [HttpPost("{id:int}/apply")]
+    public async Task<IActionResult> Apply(
+        int id,
+        [FromQuery] ScanRunApplyMode mode = ScanRunApplyMode.NoDegrade,
+        CancellationToken ct = default)
+    {
+        var run = await _db.ScanRuns
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == id, ct);
+
+        if (run is null)
+            return NotFound(new { message = "ScanRun not found." });
+
+        var hostResults = await _db.ScanHostResults
+            .AsNoTracking()
+            .Where(h => h.ScanRunId == id)
+            .Select(h => new
+            {
+                h.IpAddress,
+                h.Status,
+                h.OpenPortsJson,
+                h.Manufacturer,
+                h.Model,
+                h.Firmware,
+                h.SerialNumber,
+                h.Protocol,
+                h.WebPort,
+                h.SdkPort,
+                h.CredentialId
+            })
+            .ToListAsync(ct);
+
+        // Regla: NoPorts NO se aplica
+        var applicable = hostResults
+            .Where(h => !string.Equals(h.Status, "NoPorts", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (applicable.Count == 0)
+        {
+            return Ok(new
+            {
+                scanRunId = id,
+                mode = mode.ToString(),
+                created = 0,
+                updated = 0,
+                skipped = 0
+            });
+        }
+
+        var ips = applicable.Select(h => h.IpAddress).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        var existingAssets = await _db.SystemAssets
+            .Where(a => a.InstallationId == run.InstallationId && ips.Contains(a.IpAddress))
+            .ToDictionaryAsync(a => a.IpAddress, StringComparer.OrdinalIgnoreCase, ct);
+
+        var applySeen = run.FinishedAt ?? run.StartedAt;
+
+        var created = 0;
+        var updated = 0;
+        var skipped = 0;
+
+        foreach (var h in applicable)
+        {
+            if (!existingAssets.TryGetValue(h.IpAddress, out var asset))
+            {
+                // CREATE
+                asset = new SystemAsset
+                {
+                    InstallationId = run.InstallationId,
+                    IpAddress = h.IpAddress,
+                    Category = "Unknown",
+
+                    Manufacturer = h.Manufacturer,
+                    Model = h.Model,
+                    Firmware = h.Firmware,
+                    SerialNumber = h.SerialNumber,
+
+                    OpenPortsJson = string.IsNullOrWhiteSpace(h.OpenPortsJson) ? "[]" : h.OpenPortsJson,
+                    WebPort = h.WebPort,
+                    SdkPort = h.SdkPort,
+
+                    Protocol = h.Protocol,
+                    Status = h.Status,
+
+                    PreferredCredentialId = h.CredentialId,
+
+                    LastSeenAt = applySeen
+                    // CreatedAt se queda por defecto
+                };
+
+                _db.SystemAssets.Add(asset);
+                existingAssets[h.IpAddress] = asset;
+                created++;
+                continue;
+            }
+
+            // Decide update
+            var shouldUpdate = mode switch
+            {
+                ScanRunApplyMode.LastWins => true,
+                ScanRunApplyMode.NoDegrade => IsUpgrade(asset.Status, h.Status),
+                _ => false
+            };
+
+            if (!shouldUpdate)
+            {
+                skipped++;
+                continue;
+            }
+
+            // UPDATE
+            asset.Manufacturer = h.Manufacturer ?? asset.Manufacturer;
+            asset.Model = h.Model ?? asset.Model;
+            asset.Firmware = h.Firmware ?? asset.Firmware;
+            asset.SerialNumber = h.SerialNumber ?? asset.SerialNumber;
+
+            asset.OpenPortsJson = string.IsNullOrWhiteSpace(h.OpenPortsJson) ? asset.OpenPortsJson : h.OpenPortsJson;
+
+            asset.WebPort = h.WebPort ?? asset.WebPort;
+            asset.SdkPort = h.SdkPort ?? asset.SdkPort;
+
+            asset.Protocol = h.Protocol ?? asset.Protocol;
+
+            // status siempre en update
+            asset.Status = h.Status;
+
+            // no machacar con null
+            if (h.CredentialId.HasValue)
+                asset.PreferredCredentialId = h.CredentialId;
+
+            asset.LastSeenAt = applySeen;
+
+            updated++;
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new
+        {
+            scanRunId = id,
+            mode = mode.ToString(),
+            created,
+            updated,
+            skipped
+        });
+    }
+
     public class ScanHostResultDto
     {
         public string IpAddress { get; set; } = default!;
@@ -132,6 +300,30 @@ public class ScanRunsController : ControllerBase
         {
             return new List<int>();
         }
+    }
+
+    private static bool IsUpgrade(string? current, string? incoming)
+    {
+        var c = (current ?? "").Trim();
+        var i = (incoming ?? "").Trim();
+
+        if (string.IsNullOrWhiteSpace(i)) return false;
+        if (string.IsNullOrWhiteSpace(c)) return true;
+        if (string.Equals(c, i, StringComparison.OrdinalIgnoreCase)) return false;
+
+        var rank = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Authenticated"] = 4,
+            ["Identified"] = 3,
+            ["Found"] = 2,
+            ["Unknown"] = 1,
+            ["Error"] = 0
+        };
+
+        var cr = rank.TryGetValue(c, out var cRank) ? cRank : 1;
+        var ir = rank.TryGetValue(i, out var iRank) ? iRank : 1;
+
+        return ir > cr;
     }
 
     // DELETE /api/scanruns/{id}

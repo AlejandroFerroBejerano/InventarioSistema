@@ -28,9 +28,22 @@ export type ScanHostResultDto = {
   errorMessage?: string | null;
 };
 
-export async function getScanRuns(abonadoMm: string) {
+export type ScanRunApplyMode = "NoDegrade" | "LastWins";
+
+export type ScanRunApplyResult = {
+  scanRunId: number;
+  mode: ScanRunApplyMode;
+  created: number;
+  updated: number;
+  skipped: number;
+};
+
+export async function getScanRuns(abonadoMm: string, networkId?: number | null) {
   const res = await http.get<ScanRunListItem[]>("/api/scanruns", {
-    params: { abonadoMm },
+    params: {
+      abonadoMm,
+      ...(networkId != null ? { networkId } : {}),
+    },
   });
   return res.data;
 }
@@ -61,4 +74,11 @@ export async function deleteScanRun(scanRunId: number, confirmation: string) {
   await http.delete(`/api/scanruns/${scanRunId}`, {
     data: { confirmation },
   });
+}
+
+export async function applyScanRun(scanRunId: number, mode: ScanRunApplyMode) {
+  const res = await http.post<ScanRunApplyResult>(`/api/scanruns/${scanRunId}/apply`, null, {
+    params: { mode },
+  });
+  return res.data;
 }

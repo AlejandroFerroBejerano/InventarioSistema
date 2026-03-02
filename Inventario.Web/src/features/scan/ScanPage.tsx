@@ -11,6 +11,7 @@ import {
   NumberFormatter,
   RingProgress,
   ScrollArea,
+  Select,
   SimpleGrid,
   Stack,
   Table,
@@ -49,10 +50,12 @@ import {
 } from "../../api/networks";
 
 import {
+  applyScanRun,
   deleteScanRun,
   exportScanRunCsv,
   getScanRuns,
   getScanRunHosts,
+  type ScanRunApplyMode,
   type ScanRunListItem,
   type ScanHostResultDto,
 } from "../../api/scanRuns";
@@ -259,8 +262,8 @@ export function ScanPage() {
   // Historial ScanRuns
   // -----------------------------
   const scanRunsQuery = useQuery({
-    queryKey: ["scanruns", selectedAbonadoMm],
-    queryFn: () => getScanRuns((selectedAbonadoMm ?? "").trim()),
+    queryKey: ["scanruns", selectedAbonadoMm, selectedNetworkId],
+    queryFn: () => getScanRuns((selectedAbonadoMm ?? "").trim(), selectedNetworkId),
     enabled: Boolean((selectedAbonadoMm ?? "").trim()),
   });
 
@@ -268,8 +271,12 @@ export function ScanPage() {
   const [scanRunDeleteOpen, scanRunDeleteModal] = useDisclosure(false);
   const [scanRunToDelete, setScanRunToDelete] = useState<ScanRunListItem | null>(null);
   const [scanRunDeleteConfirmation, setScanRunDeleteConfirmation] = useState("");
+  const [scanRunApplyOpen, scanRunApplyModal] = useDisclosure(false);
+  const [scanRunToApply, setScanRunToApply] = useState<ScanRunListItem | null>(null);
+  const [scanRunApplyMode, setScanRunApplyMode] = useState<ScanRunApplyMode>("NoDegrade");
   const [exportingScanRunId, setExportingScanRunId] = useState<number | null>(null);
   const [deletingScanRunId, setDeletingScanRunId] = useState<number | null>(null);
+  const [applyingScanRunId, setApplyingScanRunId] = useState<number | null>(null);
   const [executionsCompact, setExecutionsCompact] = useState(false);
 
   const scanRunHostsQuery = useQuery({
@@ -328,6 +335,34 @@ export function ScanPage() {
     },
     onSettled: () => {
       setDeletingScanRunId(null);
+    },
+  });
+
+  const applyScanRunMutation = useMutation({
+    mutationFn: (payload: { id: number; mode: ScanRunApplyMode }) =>
+      applyScanRun(payload.id, payload.mode),
+    onMutate: ({ id }) => {
+      setApplyingScanRunId(id);
+    },
+    onSuccess: async (result) => {
+      await qc.invalidateQueries({ queryKey: ["assets"] });
+      await qc.invalidateQueries({ queryKey: ["scanruns", selectedAbonadoMm] });
+      scanRunApplyModal.close();
+      setScanRunToApply(null);
+      notifications.show({
+        title: "Inventario actualizado",
+        message: `Created ${result.created} | Updated ${result.updated} | Skipped ${result.skipped}`,
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error aplicando ejecucion",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
+    onSettled: () => {
+      setApplyingScanRunId(null);
     },
   });
 
@@ -476,6 +511,30 @@ export function ScanPage() {
     return `scan_${mm}_${cidr}`;
   }, [selectedAbonadoMm, selectedNetwork?.cidr]);
 
+  const filteredScanRuns = useMemo(() => {
+    const runs = scanRunsQuery.data ?? [];
+    if (!selectedNetwork) return runs;
+
+    const selectedCidr = (selectedNetwork.cidr ?? "").trim().toLowerCase();
+
+    return runs.filter((run) => {
+      if (run.networkId != null) return run.networkId === selectedNetwork.id;
+      return (run.networkCidr ?? "").trim().toLowerCase() === selectedCidr;
+    });
+  }, [scanRunsQuery.data, selectedNetwork]);
+
+  const selectedScanRun = useMemo(
+    () => filteredScanRuns.find((run) => run.id === selectedScanRunId) ?? null,
+    [filteredScanRuns, selectedScanRunId]
+  );
+
+  useEffect(() => {
+    if (selectedScanRunId == null) return;
+    if (!filteredScanRuns.some((run) => run.id === selectedScanRunId)) {
+      setSelectedScanRunId(null);
+    }
+  }, [filteredScanRuns, selectedScanRunId]);
+
   const openNetworkDeleteDialog = (network: NetworkDto) => {
     setNetworkToDelete(network);
     setNetworkDeletePreview(null);
@@ -487,6 +546,11 @@ export function ScanPage() {
     setScanRunToDelete(scanRun);
     setScanRunDeleteConfirmation("");
     scanRunDeleteModal.open();
+  };
+
+  const openScanRunApplyDialog = (scanRun: ScanRunListItem) => {
+    setScanRunToApply(scanRun);
+    scanRunApplyModal.open();
   };
 
   const networksPanelSpan = networksCompact ? 1 : 3;
@@ -692,6 +756,65 @@ export function ScanPage() {
               }}
             >
               Eliminar ejecución
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={scanRunApplyOpen}
+        onClose={() => {
+          if (!applyScanRunMutation.isPending) {
+            scanRunApplyModal.close();
+            setScanRunToApply(null);
+          }
+        }}
+        title="Aplicar ejecucion al inventario"
+        centered
+      >
+        <Stack>
+          <Text>
+            Se aplicara esta ejecucion historica sobre el inventario vivo.
+            <br />
+            No se eliminaran activos.
+          </Text>
+
+          <Card withBorder radius="md" p="sm">
+            <Text fw={600}>Run #{scanRunToApply?.id ?? "-"}</Text>
+            <Text size="sm" c="dimmed">
+              Inicio: {scanRunToApply?.startedAt ? new Date(scanRunToApply.startedAt).toLocaleString() : "-"}
+            </Text>
+            <Text size="sm" c="dimmed">
+              Red: {scanRunToApply?.networkCidr ?? "-"}
+            </Text>
+            <Text size="sm" c="dimmed">
+              Modo: {scanRunApplyMode}
+            </Text>
+          </Card>
+
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => {
+                scanRunApplyModal.close();
+                setScanRunToApply(null);
+              }}
+              disabled={applyScanRunMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              loading={applyScanRunMutation.isPending}
+              disabled={!scanRunToApply}
+              onClick={() => {
+                if (!scanRunToApply) return;
+                applyScanRunMutation.mutate({
+                  id: scanRunToApply.id,
+                  mode: scanRunApplyMode,
+                });
+              }}
+            >
+              Confirmar apply
             </Button>
           </Group>
         </Stack>
@@ -1171,8 +1294,8 @@ export function ScanPage() {
               <Tabs.Panel value="history" pt="md">
                 {scanRunsQuery.isLoading ? (
                   <Text c="dimmed">Cargando histórico…</Text>
-                ) : (scanRunsQuery.data?.length ?? 0) === 0 ? (
-                  <Text c="dimmed">Sin ejecuciones aún.</Text>
+                ) : filteredScanRuns.length === 0 ? (
+                  <Text c="dimmed">Sin ejecuciones para la red seleccionada.</Text>
                 ) : (
                   <SimpleGrid cols={{ base: 1, md: 12 }} spacing="md">
                     <Card
@@ -1187,7 +1310,7 @@ export function ScanPage() {
                           <Badge variant="light">
                             <NumberFormatter
                               thousandSeparator
-                              value={scanRunsQuery.data?.length ?? 0}
+                              value={filteredScanRuns.length}
                             />
                           </Badge>
                           <ActionIcon
@@ -1221,15 +1344,20 @@ export function ScanPage() {
                             </Table.Tr>
                           </Table.Thead>
                           <Table.Tbody>
-                            {(scanRunsQuery.data ?? []).map((r: ScanRunListItem) => (
+                            {filteredScanRuns.map((r: ScanRunListItem) => (
                               <Table.Tr
                                 key={r.id}
                                 style={{
                                   cursor: "pointer",
                                   background:
                                     selectedScanRunId === r.id
-                                      ? "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
+                                      ? "light-dark(var(--mantine-color-blue-0), rgba(34, 139, 230, 0.22))"
                                       : undefined,
+                                  boxShadow:
+                                    selectedScanRunId === r.id
+                                      ? "inset 3px 0 0 var(--mantine-color-blue-6)"
+                                      : undefined,
+                                  fontWeight: selectedScanRunId === r.id ? 600 : undefined,
                                 }}
                                 onClick={() => setSelectedScanRunId(r.id)}
                               >
@@ -1280,10 +1408,45 @@ export function ScanPage() {
                       p="md"
                       style={{ gridColumn: executionsCompact ? "span 9" : "span 7" }}
                     >
-                      <Text fw={600} mb="sm">
-                        Hosts{" "}
-                        {selectedScanRunId != null ? `(Run #${selectedScanRunId})` : ""}
-                      </Text>
+                      <Group justify="space-between" align="flex-end" mb="sm">
+                        <Text fw={600}>
+                          Hosts {selectedScanRunId != null ? `(Run #${selectedScanRunId})` : ""}
+                        </Text>
+                        <Group gap="xs">
+                          <Select
+                            size="xs"
+                            data={[
+                              { value: "NoDegrade", label: "NoDegrade" },
+                              { value: "LastWins", label: "LastWins" },
+                            ]}
+                            value={scanRunApplyMode}
+                            onChange={(value) => {
+                              if (value === "NoDegrade" || value === "LastWins") {
+                                setScanRunApplyMode(value);
+                              }
+                            }}
+                          />
+                          <Button
+                            size="xs"
+                            disabled={
+                              selectedScanRun == null ||
+                              deleteScanRunMutation.isPending ||
+                              scanRunsQuery.isLoading
+                            }
+                            loading={
+                              selectedScanRun != null &&
+                              applyScanRunMutation.isPending &&
+                              applyingScanRunId === selectedScanRun.id
+                            }
+                            onClick={() => {
+                              if (!selectedScanRun) return;
+                              openScanRunApplyDialog(selectedScanRun);
+                            }}
+                          >
+                            Apply to Inventory
+                          </Button>
+                        </Group>
+                      </Group>
 
                       {selectedScanRunId == null ? (
                         <Text c="dimmed">Selecciona una ejecución.</Text>
@@ -1330,3 +1493,4 @@ export function ScanPage() {
     </Stack>
   );
 }
+
