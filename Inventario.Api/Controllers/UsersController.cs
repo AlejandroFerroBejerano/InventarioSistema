@@ -191,10 +191,13 @@ public class UsersController : ControllerBase
         if (!updateResult.Succeeded)
             return BadRequest(new { message = "User update failed.", errors = updateResult.Errors.Select(e => e.Description) });
 
+        var roleChanged = false;
+        string? previousRole = null;
+        string? targetRole = null;
         if (!string.IsNullOrWhiteSpace(request.Role))
         {
             var requestedRole = request.Role.Trim();
-            var targetRole = AuthRoles.All.FirstOrDefault(r =>
+            targetRole = AuthRoles.All.FirstOrDefault(r =>
                 string.Equals(r, requestedRole, StringComparison.OrdinalIgnoreCase));
             if (targetRole is null)
             {
@@ -202,21 +205,26 @@ public class UsersController : ControllerBase
             }
 
             var currentRoles = await _userManager.GetRolesAsync(user);
-            if (currentRoles.Count > 0)
-                await _userManager.RemoveFromRolesAsync(user, currentRoles);
+            previousRole = currentRoles.FirstOrDefault();
+            if (!currentRoles.Contains(targetRole, StringComparer.OrdinalIgnoreCase))
+            {
+                if (currentRoles.Count > 0)
+                    await _userManager.RemoveFromRolesAsync(user, currentRoles);
 
-            await _userManager.AddToRoleAsync(user, targetRole);
+                await _userManager.AddToRoleAsync(user, targetRole);
+                roleChanged = true;
+            }
         }
 
         await _audit.WriteAsync(
-            action: "Users/Update",
+            action: roleChanged ? "Users/ChangeRole" : "Users/Update",
             actorType: "User",
             actorId: GetCurrentUserId(),
             resourceType: "User",
             resourceId: user.Id,
             result: "Success",
             context: HttpContext,
-            details: new { email = user.Email });
+            details: new { email = user.Email, roleChanged, previousRole, targetRole });
 
         var roles = await _userManager.GetRolesAsync(user);
         return Ok(await MapAsync(user, roles));

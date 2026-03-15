@@ -21,6 +21,45 @@ export type AuditEventsResponse = {
   items: AuditEventDto[];
 };
 
+export type SecurityActionCountDto = {
+  action: string;
+  count: number;
+};
+
+export type SecurityHourlyPointDto = {
+  bucketUtc: string;
+  failedLogins: number;
+};
+
+export type SecuritySummaryDto = {
+  fromUtc: string;
+  toUtc: string;
+  totalEvents: number;
+  successfulLogins: number;
+  failedLogins: number;
+  lockedOutAttempts: number;
+  mfaEnabledEvents: number;
+  mfaDisabledEvents: number;
+  roleChanges: number;
+  dataExports: number;
+  topActions: SecurityActionCountDto[];
+  failedLoginsByHour: SecurityHourlyPointDto[];
+};
+
+export type SecurityAlertDto = {
+  id: string;
+  detectedAtUtc: string;
+  severity: string;
+  category: string;
+  title: string;
+  description: string;
+  actorId?: string | null;
+  resourceId?: string | null;
+  ipAddress?: string | null;
+  action?: string | null;
+  count: number;
+};
+
 export async function getAuditEvents(filters: {
   actorId?: string | null;
   action?: string | null;
@@ -42,6 +81,32 @@ export async function getAuditEvents(filters: {
     },
   });
 
+  return data;
+}
+
+export async function getSecuritySummary(filters?: {
+  fromUtc?: string | null;
+  toUtc?: string | null;
+}) {
+  const { data } = await http.get<SecuritySummaryDto>("/api/auditEvents/security/summary", {
+    params: {
+      fromUtc: filters?.fromUtc || undefined,
+      toUtc: filters?.toUtc || undefined,
+    },
+  });
+  return data;
+}
+
+export async function getSecurityAlerts(filters?: {
+  hours?: number;
+  take?: number;
+}) {
+  const { data } = await http.get<SecurityAlertDto[]>("/api/auditEvents/security/alerts", {
+    params: {
+      hours: filters?.hours ?? 24,
+      take: filters?.take ?? 100,
+    },
+  });
   return data;
 }
 
