@@ -12,6 +12,7 @@ import { Notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import App from "./app/App";
+import { AuthProvider } from "./auth/AuthContext";
 import { AppThemeContext, type AppStylePreset } from "./app/theme/AppThemeContext";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
@@ -102,18 +103,20 @@ export function AppRoot() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppThemeContext.Provider value={{ stylePreset, setStylePreset }}>
-        <MantineProvider
-          colorSchemeManager={colorSchemeManager}
-          defaultColorScheme="auto"
-          theme={theme}
-        >
-          <Notifications position="top-right" />
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </MantineProvider>
-      </AppThemeContext.Provider>
+      <AuthProvider>
+        <AppThemeContext.Provider value={{ stylePreset, setStylePreset }}>
+          <MantineProvider
+            colorSchemeManager={colorSchemeManager}
+            defaultColorScheme="auto"
+            theme={theme}
+          >
+            <Notifications position="top-right" />
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </MantineProvider>
+        </AppThemeContext.Provider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

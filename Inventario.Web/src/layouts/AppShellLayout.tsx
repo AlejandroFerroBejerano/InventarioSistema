@@ -26,9 +26,13 @@ import {
   IconShieldLock,
   IconSparkles,
   IconSun,
+  IconLogout,
+  IconUserCircle,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppTheme, type AppStylePreset } from "../app/theme/AppThemeContext";
+import { useAuth } from "../auth/AuthContext";
 
 type Props = { children: ReactNode };
 
@@ -56,6 +60,13 @@ export function AppShellLayout({ children }: Props) {
   const { stylePreset, setStylePreset } = useAppTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, hasAnyRole, logout } = useAuth();
+  const canManageUsers = hasAnyRole(["GlobalAdmin", "TechnicalAdmin"]);
+  const canViewAudit = hasAnyRole(["GlobalAdmin", "Auditor"]);
+
+  function onLogout() {
+    logout().finally(() => navigate("/login", { replace: true }));
+  }
 
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + "/");
@@ -66,6 +77,12 @@ export function AppShellLayout({ children }: Props) {
       ? "/assets"
       : isActive("/agents")
         ? "/agents"
+      : isActive("/users")
+        ? "/users"
+      : isActive("/sessions")
+        ? "/sessions"
+      : isActive("/audit")
+        ? "/audit"
       : "/installations";
 
   return (
@@ -105,11 +122,38 @@ export function AppShellLayout({ children }: Props) {
               <Tabs.Tab value="/agents" leftSection={<IconRobot size={16} />}>
                 Agentes
               </Tabs.Tab>
+              {canManageUsers ? (
+                <Tabs.Tab value="/users" leftSection={<IconUsers size={16} />}>
+                  Usuarios
+                </Tabs.Tab>
+              ) : null}
               <Tabs.Tab value="/installations" leftSection={<IconKey size={16} />}>
                 Credenciales
               </Tabs.Tab>
+              <Tabs.Tab value="/sessions" leftSection={<IconActivity size={16} />}>
+                Sesiones
+              </Tabs.Tab>
+              {canViewAudit ? (
+                <Tabs.Tab value="/audit" leftSection={<IconShieldLock size={16} />}>
+                  Auditoria
+                </Tabs.Tab>
+              ) : null}
             </Tabs.List>
           </Tabs>
+
+          <Menu position="bottom-end" shadow="md" width={220} withArrow>
+            <Menu.Target>
+              <Button variant="light" leftSection={<IconUserCircle size={16} />} size="sm">
+                {user?.displayName || user?.email || "Cuenta"}
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>{user?.displayName || user?.email}</Menu.Label>
+              <Menu.Item leftSection={<IconLogout size={16} />} onClick={onLogout}>
+                Cerrar sesion
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
 
           <Menu position="bottom-end" shadow="md" width={280} withArrow>
             <Menu.Target>
@@ -184,6 +228,14 @@ export function AppShellLayout({ children }: Props) {
           active={isActive("/agents")}
           onClick={() => navigate("/agents")}
         />
+        {canManageUsers ? (
+          <NavLink
+            label="Usuarios"
+            leftSection={<IconUsers size={18} />}
+            active={isActive("/users")}
+            onClick={() => navigate("/users")}
+          />
+        ) : null}
 
         <NavLink
           label="Credenciales"
@@ -191,6 +243,20 @@ export function AppShellLayout({ children }: Props) {
           active={isActive("/installations")}
           onClick={() => navigate("/installations")}
         />
+        <NavLink
+          label="Sesiones"
+          leftSection={<IconActivity size={18} />}
+          active={isActive("/sessions")}
+          onClick={() => navigate("/sessions")}
+        />
+        {canViewAudit ? (
+          <NavLink
+            label="Auditoria"
+            leftSection={<IconShieldLock size={18} />}
+            active={isActive("/audit")}
+            onClick={() => navigate("/audit")}
+          />
+        ) : null}
       </AppShell.Navbar>
 
       <AppShell.Main>{children}</AppShell.Main>

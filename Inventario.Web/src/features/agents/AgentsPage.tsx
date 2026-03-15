@@ -425,7 +425,7 @@ export function AgentsPage() {
           <div>
               <Title order={3}>Agentes remotos</Title>
               <Text c="dimmed" size="sm">
-                Gestiona instalacion → agente → enrolamiento → trabajos de escaneo remotos.
+                Gestiona instalacion - agente - enrolamiento - trabajos de escaneo remotos.
               </Text>
             </div>
           <Button
