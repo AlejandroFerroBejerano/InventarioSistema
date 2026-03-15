@@ -18,6 +18,7 @@ import {
   IconActivity,
   IconCheck,
   IconDeviceDesktop,
+  IconRobot,
   IconKey,
   IconMoon,
   IconNetwork,
@@ -63,6 +64,8 @@ export function AppShellLayout({ children }: Props) {
     ? "/scan"
     : isActive("/assets")
       ? "/assets"
+      : isActive("/agents")
+        ? "/agents"
       : "/installations";
 
   return (
@@ -98,6 +101,9 @@ export function AppShellLayout({ children }: Props) {
               </Tabs.Tab>
               <Tabs.Tab value="/assets" leftSection={<IconNetwork size={16} />}>
                 Activos
+              </Tabs.Tab>
+              <Tabs.Tab value="/agents" leftSection={<IconRobot size={16} />}>
+                Agentes
               </Tabs.Tab>
               <Tabs.Tab value="/installations" leftSection={<IconKey size={16} />}>
                 Credenciales
@@ -173,6 +179,13 @@ export function AppShellLayout({ children }: Props) {
           onClick={() => navigate("/assets")}
         />
         <NavLink
+          label="Agentes"
+          leftSection={<IconRobot size={18} />}
+          active={isActive("/agents")}
+          onClick={() => navigate("/agents")}
+        />
+
+        <NavLink
           label="Credenciales"
           leftSection={<IconKey size={18} />}
           active={isActive("/installations")}
@@ -184,4 +197,3 @@ export function AppShellLayout({ children }: Props) {
     </AppShell>
   );
 }
-
