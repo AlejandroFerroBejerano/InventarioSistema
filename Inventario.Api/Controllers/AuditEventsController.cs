@@ -112,6 +112,40 @@ public class AuditEventsController : ControllerBase
         return File(bytes, "text/csv; charset=utf-8", $"audit-events-{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv");
     }
 
+    [HttpGet("export/json")]
+    public async Task<IActionResult> ExportJson(
+        [FromQuery] string? actorId,
+        [FromQuery] string? action,
+        [FromQuery] string? resourceType,
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc)
+    {
+        var query = _db.AuditEvents.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(actorId))
+            query = query.Where(x => x.ActorId == actorId);
+
+        if (!string.IsNullOrWhiteSpace(action))
+            query = query.Where(x => x.Action == action);
+
+        if (!string.IsNullOrWhiteSpace(resourceType))
+            query = query.Where(x => x.ResourceType == resourceType);
+
+        if (fromUtc.HasValue)
+            query = query.Where(x => x.TimestampUtc >= fromUtc.Value);
+
+        if (toUtc.HasValue)
+            query = query.Where(x => x.TimestampUtc <= toUtc.Value);
+
+        var rows = await query.OrderByDescending(x => x.TimestampUtc).ToListAsync();
+        var content = System.Text.Json.JsonSerializer.Serialize(rows);
+
+        return File(
+            Encoding.UTF8.GetBytes(content),
+            "application/json; charset=utf-8",
+            $"audit-events-{DateTime.UtcNow:yyyyMMdd_HHmmss}.json");
+    }
+
     private static string Escape(string? value)
     {
         value ??= "";

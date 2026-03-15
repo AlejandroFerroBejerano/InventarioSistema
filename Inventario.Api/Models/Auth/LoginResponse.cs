@@ -12,4 +12,9 @@ public class LoginResponse
     public string DisplayName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string[] Roles { get; set; } = System.Array.Empty<string>();
+
+    public bool RequiresMfa { get; set; }
+    public string? MfaChallengeToken { get; set; }
+    public DateTime? MfaChallengeExpiresAtUtc { get; set; }
+    public string? Message { get; set; }
 }

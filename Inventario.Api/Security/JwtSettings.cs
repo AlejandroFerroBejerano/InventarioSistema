@@ -7,4 +7,5 @@ public class JwtSettings
     public string Audience { get; set; } = "Inventario.Web";
     public int AccessTokenMinutes { get; set; } = 30;
     public int RefreshTokenDays { get; set; } = 7;
+    public int MfaChallengeMinutes { get; set; } = 5;
 }

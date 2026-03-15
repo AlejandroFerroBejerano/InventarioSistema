@@ -12,7 +12,12 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useQuery } from "@tanstack/react-query";
-import { downloadAuditCsv, getAuditEvents, type AuditEventDto } from "../../api/auditEvents";
+import {
+  downloadAuditCsv,
+  downloadAuditJson,
+  getAuditEvents,
+  type AuditEventDto,
+} from "../../api/auditEvents";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -67,12 +72,35 @@ export function AuditPage() {
     }
   }
 
+  async function onExportJson() {
+    try {
+      await downloadAuditJson({
+        actorId: debouncedActorId,
+        action: debouncedAction,
+        resourceType: debouncedResourceType,
+        fromUtc: fromUtc || undefined,
+        toUtc: toUtc || undefined,
+      });
+    } catch {
+      notifications.show({
+        title: "No se pudo exportar",
+        message: "No fue posible descargar JSON.",
+        color: "red",
+      });
+    }
+  }
+
   return (
     <Stack gap="md">
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md" wrap="wrap">
           <Title order={3}>Auditoria</Title>
-          <Button onClick={onExport}>Exportar CSV</Button>
+          <Group gap="xs">
+            <Button onClick={onExport}>Exportar CSV</Button>
+            <Button variant="light" onClick={onExportJson}>
+              Exportar JSON
+            </Button>
+          </Group>
         </Group>
 
         <Group mb="md" gap="sm" wrap="wrap">

@@ -15,8 +15,30 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
-import { createUser, deleteUser, getUsers, setUserStatus, updateUser, type CreateUserRequest, type UserDto, type UpdateUserRequest } from "../../api/users";
+import {
+  IconEdit,
+  IconPlus,
+  IconPower,
+  IconShieldLock,
+  IconTrash,
+} from "@tabler/icons-react";
+import {
+  createUser,
+  deleteUser,
+  getUsers,
+  setUserStatus,
+  updateUser,
+  type CreateUserRequest,
+  type UserDto,
+  type UpdateUserRequest,
+} from "../../api/users";
+import {
+  confirmMfa,
+  disableMfa,
+  getMfaSetup,
+  regenerateRecoveryCodes,
+  type MfaSetupResponse,
+} from "../../api/auth";
 
 type RoleOption = {
   value: string;
@@ -57,6 +79,12 @@ export function UsersPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [mfaOpen, setMfaOpen] = useState(false);
+  const [mfaUser, setMfaUser] = useState<UserDto | null>(null);
+  const [mfaSetupData, setMfaSetupData] = useState<MfaSetupResponse | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+
   const [form, setForm] = useState({
     id: "",
     email: "",
@@ -75,7 +103,7 @@ export function UsersPage() {
       setCreateOpen(false);
       notifications.show({
         title: "Usuario creado",
-        message: "El usuario quedó registrado.",
+        message: "El usuario quedo registrado.",
       });
     },
     onError: (error: any) => {
@@ -113,7 +141,7 @@ export function UsersPage() {
       await qc.invalidateQueries({ queryKey: ["users"] });
       notifications.show({
         title: "Estado actualizado",
-        message: "Se actualizó el estado del usuario.",
+        message: "Se actualizo el estado del usuario.",
       });
     },
     onError: (error: any) => {
@@ -130,14 +158,84 @@ export function UsersPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["users"] });
       notifications.show({
-        title: "Usuario marcado como eliminado",
-        message: "No se mostrará en vistas por defecto.",
+        title: "Usuario eliminado logicamente",
+        message: "No se mostrara en vistas por defecto.",
       });
     },
     onError: (error: any) => {
       notifications.show({
         title: "Error al eliminar",
         message: error?.message ?? "No fue posible eliminar.",
+        color: "red",
+      });
+    },
+  });
+
+  const loadMfaSetupMutation = useMutation({
+    mutationFn: (userId: string) => getMfaSetup(userId),
+    onSuccess: (data) => {
+      setMfaSetupData(data);
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "No se pudo cargar MFA",
+        message: error?.message ?? "Error consultando setup MFA.",
+        color: "red",
+      });
+    },
+  });
+
+  const confirmMfaMutation = useMutation({
+    mutationFn: ({ userId, code }: { userId: string; code: string }) => confirmMfa(code, userId),
+    onSuccess: async (data) => {
+      setRecoveryCodes(data.recoveryCodes ?? []);
+      await qc.invalidateQueries({ queryKey: ["users"] });
+      notifications.show({
+        title: "MFA habilitado",
+        message: "Se activaron codigos de recuperacion.",
+      });
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "No se pudo habilitar MFA",
+        message: error?.message ?? "Codigo invalido.",
+        color: "red",
+      });
+    },
+  });
+
+  const disableMfaMutation = useMutation({
+    mutationFn: (userId: string) => disableMfa(userId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["users"] });
+      setRecoveryCodes([]);
+      notifications.show({
+        title: "MFA deshabilitado",
+        message: "El usuario ya no requiere segundo factor.",
+      });
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "No se pudo deshabilitar MFA",
+        message: error?.message ?? "Operacion no permitida.",
+        color: "red",
+      });
+    },
+  });
+
+  const regenerateRecoveryMutation = useMutation({
+    mutationFn: (userId: string) => regenerateRecoveryCodes(userId),
+    onSuccess: (data) => {
+      setRecoveryCodes(data.recoveryCodes ?? []);
+      notifications.show({
+        title: "Codigos regenerados",
+        message: "Guarda los nuevos codigos de recuperacion.",
+      });
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: "No se pudo regenerar",
+        message: error?.message ?? "Operacion no permitida.",
         color: "red",
       });
     },
@@ -171,6 +269,15 @@ export function UsersPage() {
     setEditOpen(true);
   }
 
+  function openMfa(user: UserDto) {
+    setMfaUser(user);
+    setMfaCode("");
+    setRecoveryCodes([]);
+    setMfaSetupData(null);
+    setMfaOpen(true);
+    loadMfaSetupMutation.mutate(user.id);
+  }
+
   async function saveCreate() {
     if (!form.email.trim() || !form.password.trim() || !form.displayName.trim()) {
       notifications.show({
@@ -180,6 +287,7 @@ export function UsersPage() {
       });
       return;
     }
+
     await createMutation.mutateAsync({
       email: form.email.trim(),
       password: form.password.trim(),
@@ -205,6 +313,21 @@ export function UsersPage() {
     });
   }
 
+  async function confirmSelectedMfa() {
+    if (!mfaUser) return;
+    const code = mfaCode.trim();
+    if (!code) {
+      notifications.show({
+        title: "Falta codigo",
+        message: "Introduce el codigo del autenticador.",
+        color: "red",
+      });
+      return;
+    }
+
+    await confirmMfaMutation.mutateAsync({ userId: mfaUser.id, code });
+  }
+
   useEffect(() => {
     if (!usersQuery.isRefetching && usersQuery.isError) {
       notifications.show({
@@ -219,7 +342,7 @@ export function UsersPage() {
     <Stack gap="md">
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md">
-          <Title order={3}>Gestión de usuarios (Fase 1)</Title>
+          <Title order={3}>Gestion de usuarios (Fase 2)</Title>
           <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Crear usuario
           </Button>
@@ -239,7 +362,7 @@ export function UsersPage() {
             value={includeDeleted ? "Si" : "No"}
             data={[
               { value: "No", label: "No" },
-              { value: "Si", label: "Sí" },
+              { value: "Si", label: "Si" },
             ]}
             onChange={(value) => setIncludeDeleted(value === "Si")}
           />
@@ -252,19 +375,20 @@ export function UsersPage() {
               <Table.Th>Nombre</Table.Th>
               <Table.Th>Estado</Table.Th>
               <Table.Th>Roles</Table.Th>
-              <Table.Th>Último acceso</Table.Th>
-              <Table.Th>Creación</Table.Th>
+              <Table.Th>MFA</Table.Th>
+              <Table.Th>Ultimo acceso</Table.Th>
+              <Table.Th>Creacion</Table.Th>
               <Table.Th>Acciones</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {usersQuery.isLoading ? (
               <Table.Tr>
-                <Table.Td colSpan={7}>Cargando...</Table.Td>
+                <Table.Td colSpan={8}>Cargando...</Table.Td>
               </Table.Tr>
             ) : users.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={7}>No hay usuarios.</Table.Td>
+                <Table.Td colSpan={8}>No hay usuarios.</Table.Td>
               </Table.Tr>
             ) : (
               users.map((user) => (
@@ -277,12 +401,35 @@ export function UsersPage() {
                     </Badge>
                   </Table.Td>
                   <Table.Td>{(user.roles ?? []).join(", ") || "-"}</Table.Td>
+                  <Table.Td>
+                    {user.isMfaEnabled ? (
+                      <Badge color="teal" variant="light">
+                        Enabled
+                      </Badge>
+                    ) : user.isMfaRequiredByRole ? (
+                      <Badge color="orange" variant="light">
+                        Required
+                      </Badge>
+                    ) : (
+                      <Badge color="gray" variant="light">
+                        Disabled
+                      </Badge>
+                    )}
+                  </Table.Td>
                   <Table.Td>{formatDate(user.lastLoginUtc)}</Table.Td>
                   <Table.Td>{formatDate(user.createdAtUtc)}</Table.Td>
                   <Table.Td>
                     <Group gap="xs">
-                      <ActionIcon variant="subtle" onClick={() => openEdit(user)}>
+                      <ActionIcon variant="subtle" onClick={() => openEdit(user)} title="Editar">
                         <IconEdit size={16} />
+                      </ActionIcon>
+                      <ActionIcon
+                        color="violet"
+                        variant="subtle"
+                        onClick={() => openMfa(user)}
+                        title="Configurar MFA"
+                      >
+                        <IconShieldLock size={16} />
                       </ActionIcon>
                       <ActionIcon
                         color="blue"
@@ -293,13 +440,15 @@ export function UsersPage() {
                             status: user.status === "Active" ? "Disabled" : "Active",
                           })
                         }
+                        title={user.status === "Active" ? "Desactivar" : "Activar"}
                       >
-                        <IconTrash size={16} />
+                        <IconPower size={16} />
                       </ActionIcon>
                       <ActionIcon
                         color="red"
                         variant="subtle"
                         onClick={() => deleteMutation.mutate(user.id)}
+                        title="Eliminar logico"
                       >
                         <IconTrash size={16} />
                       </ActionIcon>
@@ -336,7 +485,7 @@ export function UsersPage() {
             onChange={(event) => setForm((f) => ({ ...f, userName: event.currentTarget.value }))}
           />
           <TextInput
-            label="Organización"
+            label="Organizacion"
             value={form.organizationScope}
             onChange={(event) => setForm((f) => ({ ...f, organizationScope: event.currentTarget.value }))}
           />
@@ -377,7 +526,7 @@ export function UsersPage() {
             onChange={(event) => setForm((f) => ({ ...f, userName: event.currentTarget.value }))}
           />
           <TextInput
-            label="Organización"
+            label="Organizacion"
             value={form.organizationScope}
             onChange={(event) => setForm((f) => ({ ...f, organizationScope: event.currentTarget.value }))}
           />
@@ -397,6 +546,98 @@ export function UsersPage() {
           <Button loading={updateMutation.isPending} onClick={saveEdit}>
             Guardar cambios
           </Button>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={mfaOpen}
+        onClose={() => setMfaOpen(false)}
+        title={mfaUser ? `MFA de ${mfaUser.email}` : "Gestion MFA"}
+        size="lg"
+      >
+        <Stack>
+          {mfaUser ? (
+            <>
+              <Group gap="xs">
+                <Text fw={600}>Estado:</Text>
+                {mfaUser.isMfaEnabled ? (
+                  <Badge color="teal" variant="light">
+                    Enabled
+                  </Badge>
+                ) : (
+                  <Badge color={mfaUser.isMfaRequiredByRole ? "orange" : "gray"} variant="light">
+                    {mfaUser.isMfaRequiredByRole ? "Required by role" : "Disabled"}
+                  </Badge>
+                )}
+              </Group>
+
+              {loadMfaSetupMutation.isPending ? (
+                <Text c="dimmed">Cargando datos MFA...</Text>
+              ) : null}
+
+              {mfaSetupData && !mfaUser.isMfaEnabled ? (
+                <>
+                  <Text size="sm" c="dimmed">
+                    Escanea el URI en tu app de autenticacion o usa la clave manual.
+                  </Text>
+                  <TextInput
+                    label="Clave manual"
+                    value={mfaSetupData.manualEntryCode ?? ""}
+                    readOnly
+                  />
+                  <TextInput
+                    label="URI OTP"
+                    value={mfaSetupData.qrCodeUri ?? ""}
+                    readOnly
+                  />
+                  <TextInput
+                    label="Codigo actual"
+                    value={mfaCode}
+                    onChange={(event) => setMfaCode(event.currentTarget.value)}
+                    placeholder="123456"
+                  />
+                  <Button loading={confirmMfaMutation.isPending} onClick={confirmSelectedMfa}>
+                    Confirmar y habilitar MFA
+                  </Button>
+                </>
+              ) : null}
+
+              {mfaUser.isMfaEnabled ? (
+                <Group>
+                  <Button
+                    variant="light"
+                    loading={regenerateRecoveryMutation.isPending}
+                    onClick={() => regenerateRecoveryMutation.mutate(mfaUser.id)}
+                  >
+                    Regenerar recovery codes
+                  </Button>
+                  <Button
+                    color="red"
+                    variant="light"
+                    loading={disableMfaMutation.isPending}
+                    onClick={() => disableMfaMutation.mutate(mfaUser.id)}
+                  >
+                    Deshabilitar MFA
+                  </Button>
+                </Group>
+              ) : null}
+
+              {recoveryCodes.length > 0 ? (
+                <Card withBorder radius="md" p="sm">
+                  <Stack gap="xs">
+                    <Text fw={600}>Recovery codes (guardalos en lugar seguro)</Text>
+                    {recoveryCodes.map((code) => (
+                      <Text key={code} ff="monospace">
+                        {code}
+                      </Text>
+                    ))}
+                  </Stack>
+                </Card>
+              ) : null}
+            </>
+          ) : (
+            <Text c="dimmed">Selecciona un usuario.</Text>
+          )}
         </Stack>
       </Modal>
     </Stack>

@@ -12,4 +12,6 @@ public class UserDto
     public DateTime CreatedAtUtc { get; set; }
     public string? OrganizationScope { get; set; }
     public string[] Roles { get; set; } = System.Array.Empty<string>();
+    public bool IsMfaEnabled { get; set; }
+    public bool IsMfaRequiredByRole { get; set; }
 }

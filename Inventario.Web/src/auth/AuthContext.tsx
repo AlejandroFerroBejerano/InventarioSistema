@@ -1,5 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { login as loginApi, logout as logoutApi } from "../api/auth";
+import {
+  login as loginApi,
+  logout as logoutApi,
+  verifyMfa as verifyMfaApi,
+  type LoginResponse,
+  type MfaVerifyRequest,
+} from "../api/auth";
 import { setAuthToken, clearAuthToken } from "../api/http";
 
 export type AuthUser = {
@@ -29,7 +35,8 @@ type AuthContextValue = {
   accessToken: string | null;
   sessionId: string | null;
   refreshToken: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResponse>;
+  verifyMfa: (mfaChallengeToken: string, code: string, useRecoveryCode: boolean) => Promise<LoginResponse>;
   logout: () => Promise<void>;
   hasAnyRole: (roles: string[]) => boolean;
 };
@@ -64,22 +71,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await loginApi({ email, password });
+    if (!response.requiresMfa && response.accessToken && response.sessionId && response.refreshToken) {
+      const next: StoredSession = {
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+        sessionId: response.sessionId,
+        tokenType: response.tokenType ?? "Bearer",
+        expiresAtUtc: response.expiresAtUtc ?? new Date().toISOString(),
+        refreshTokenExpiresAtUtc: response.refreshTokenExpiresAtUtc ?? new Date().toISOString(),
+        userId: response.userId ?? "",
+        displayName: response.displayName ?? "",
+        email: response.email ?? "",
+        roles: response.roles ?? [],
+      };
+
+      setStored(next);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(next));
+      setAuthToken(next.accessToken);
+    }
+    return response;
+  };
+
+  const verifyMfa = async (mfaChallengeToken: string, code: string, useRecoveryCode: boolean) => {
+    const response = await verifyMfaApi({ mfaChallengeToken, code, useRecoveryCode } as MfaVerifyRequest);
+    if (!response.accessToken || !response.sessionId || !response.refreshToken) {
+      throw new Error("MFA verification response is incomplete.");
+    }
+
     const next: StoredSession = {
       accessToken: response.accessToken,
       refreshToken: response.refreshToken,
       sessionId: response.sessionId,
-      tokenType: response.tokenType,
-      expiresAtUtc: response.expiresAtUtc,
-      refreshTokenExpiresAtUtc: response.refreshTokenExpiresAtUtc,
-      userId: response.userId,
-      displayName: response.displayName,
-      email: response.email,
+      tokenType: response.tokenType ?? "Bearer",
+      expiresAtUtc: response.expiresAtUtc ?? new Date().toISOString(),
+      refreshTokenExpiresAtUtc: response.refreshTokenExpiresAtUtc ?? new Date().toISOString(),
+      userId: response.userId ?? "",
+      displayName: response.displayName ?? "",
+      email: response.email ?? "",
       roles: response.roles ?? [],
     };
 
     setStored(next);
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(next));
     setAuthToken(next.accessToken);
+    return response;
   };
 
   const logout = async () => {
@@ -116,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionId: stored?.sessionId ?? null,
       refreshToken: stored?.refreshToken ?? null,
       login,
+      verifyMfa,
       logout,
       hasAnyRole,
     }),

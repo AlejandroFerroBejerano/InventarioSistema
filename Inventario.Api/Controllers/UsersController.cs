@@ -79,7 +79,7 @@ public class UsersController : ControllerBase
                 continue;
             }
 
-            result.Add(Map(user, roles));
+            result.Add(await MapAsync(user, roles));
         }
 
         return Ok(result);
@@ -140,7 +140,7 @@ public class UsersController : ControllerBase
             details: new { email = user.Email });
 
         var roles = await _userManager.GetRolesAsync(user);
-        return CreatedAtAction(nameof(Get), new { id = user.Id }, Map(user, roles));
+        return CreatedAtAction(nameof(Get), new { id = user.Id }, await MapAsync(user, roles));
     }
 
     [HttpPut("{id}")]
@@ -219,7 +219,7 @@ public class UsersController : ControllerBase
             details: new { email = user.Email });
 
         var roles = await _userManager.GetRolesAsync(user);
-        return Ok(Map(user, roles));
+        return Ok(await MapAsync(user, roles));
     }
 
     [HttpPatch("{id}/status")]
@@ -295,8 +295,12 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    private UserDto Map(ApplicationUser user, IEnumerable<string> roles)
+    private async Task<UserDto> MapAsync(ApplicationUser user, IEnumerable<string> roles)
     {
+        var roleArray = roles as string[] ?? roles.ToArray();
+        var mfaRequiredByRole = roleArray.Contains(AuthRoles.GlobalAdmin, StringComparer.OrdinalIgnoreCase)
+            || roleArray.Contains(AuthRoles.TechnicalAdmin, StringComparer.OrdinalIgnoreCase);
+
         return new UserDto
         {
             Id = user.Id,
@@ -308,7 +312,9 @@ public class UsersController : ControllerBase
             LastLoginUtc = user.LastLoginUtc,
             CreatedAtUtc = user.CreatedAtUtc,
             OrganizationScope = user.OrganizationScope,
-            Roles = roles.ToArray()
+            Roles = roleArray,
+            IsMfaEnabled = await _userManager.GetTwoFactorEnabledAsync(user),
+            IsMfaRequiredByRole = mfaRequiredByRole
         };
     }
 

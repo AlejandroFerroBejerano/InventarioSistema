@@ -11,6 +11,8 @@ export type UserDto = {
   createdAtUtc: string;
   organizationScope?: string | null;
   roles: string[];
+  isMfaEnabled: boolean;
+  isMfaRequiredByRole: boolean;
 };
 
 export type CreateUserRequest = {
