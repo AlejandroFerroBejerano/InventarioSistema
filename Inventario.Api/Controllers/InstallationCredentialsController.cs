@@ -64,6 +64,42 @@ public class InstallationCredentialsController : ControllerBase
         return Ok(items);
     }
 
+    // GET /api/installations/{abonadoMm}/credentials/{credentialId}/secret
+    [HttpGet("{credentialId:int}/secret")]
+    public async Task<ActionResult> GetSecret([FromRoute] string abonadoMm, [FromRoute] int credentialId)
+    {
+        var installation = await FindInstallationAsync(abonadoMm, asNoTracking: true);
+        if (installation is null)
+            return NotFound(new { message = "InstalaciÃ³n no encontrada." });
+
+        var link = await _db.InstallationCredentials
+            .AsNoTracking()
+            .Include(x => x.Credential)
+            .FirstOrDefaultAsync(x =>
+                x.InstallationId == installation.Id &&
+                x.CredentialId == credentialId);
+
+        if (link is null || link.Credential is null)
+            return NotFound(new { message = "Credencial no encontrada para esta instalaciÃ³n." });
+
+        string password;
+        try
+        {
+            password = _secrets.Unprotect(link.Credential.PasswordProtected);
+        }
+        catch
+        {
+            return Problem("No se pudo descifrar la contraseÃ±a almacenada.");
+        }
+
+        return Ok(new
+        {
+            credentialId = link.CredentialId,
+            username = link.Credential.Username,
+            password
+        });
+    }
+
     // POST /api/installations/{abonadoMm}/credentials
     [HttpPost]
     public async Task<ActionResult> Add([FromRoute] string abonadoMm, [FromBody] CreateCredentialRequest request)
@@ -203,8 +239,64 @@ public class InstallationCredentialsController : ControllerBase
         if (request.Label is not null)
             link.Credential!.Label = string.IsNullOrWhiteSpace(request.Label) ? null : request.Label.Trim();
 
+        if (request.Password is not null)
+        {
+            if (string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest(new { message = "Password no puede estar vacÃ­a." });
+
+            link.Credential!.PasswordProtected = _secrets.Protect(request.Password);
+        }
+
         await _db.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    // DELETE /api/installations/{abonadoMm}/credentials/{credentialId}
+    [HttpDelete("{credentialId:int}")]
+    public async Task<ActionResult> Delete(
+        [FromRoute] string abonadoMm,
+        [FromRoute] int credentialId,
+        [FromBody] DeleteConfirmationDto dto)
+    {
+        if (dto?.Confirmation?.Trim().ToLowerInvariant() != "delete")
+            return BadRequest(new { message = "Confirmation text must be 'delete'." });
+
+        var installation = await FindInstallationAsync(abonadoMm);
+        if (installation is null)
+            return NotFound(new { message = "InstalaciÃ³n no encontrada." });
+
+        var link = await _db.InstallationCredentials
+            .FirstOrDefaultAsync(x =>
+                x.InstallationId == installation.Id &&
+                x.CredentialId == credentialId);
+
+        if (link is null)
+            return NotFound(new { message = "Credencial no encontrada para esta instalaciÃ³n." });
+
+        _db.InstallationCredentials.Remove(link);
+
+        var hasOtherLinks = await _db.InstallationCredentials
+            .AnyAsync(x => x.CredentialId == credentialId && x.InstallationId != installation.Id);
+
+        var deletedGlobalCredential = false;
+        if (!hasOtherLinks)
+        {
+            var credential = await _db.Credentials.FirstOrDefaultAsync(c => c.Id == credentialId);
+            if (credential is not null)
+            {
+                _db.Credentials.Remove(credential);
+                deletedGlobalCredential = true;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Credential deleted successfully.",
+            deletedCredentialId = credentialId,
+            deletedGlobalCredential
+        });
     }
 }

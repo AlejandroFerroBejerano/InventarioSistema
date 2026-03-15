@@ -14,4 +14,7 @@ public class UpdateCredentialRequest
 
     [MaxLength(100)]
     public string? Label { get; set; }
+
+    [MaxLength(200)]
+    public string? Password { get; set; }
 }

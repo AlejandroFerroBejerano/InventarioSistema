@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  ActionIcon,
   Badge,
   Button,
   Card,
@@ -15,11 +16,14 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
 import { useSelectedInstallation } from "./useSelectedInstallation";
 import { InstallationPicker, type InstallationListItem } from "./components/InstallationPicker";
 import { getInstallations, createInstallation } from "../../api/installations";
 import {
   addInstallationCredential,
+  deleteInstallationCredential,
+  getInstallationCredentialSecret,
   getInstallationCredentials,
   updateInstallationCredential,
   type CredentialListItemDto,
@@ -44,9 +48,16 @@ export function InstallationsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<CredentialListItemDto | null>(null);
   const [eLabel, setELabel] = useState("");
+  const [ePassword, setEPassword] = useState("");
+  const [ePasswordVisible, setEPasswordVisible] = useState(false);
   const [eScope, setEScope] = useState("General");
   const [ePriority, setEPriority] = useState<number>(1);
   const [eIsActive, setEIsActive] = useState(true);
+
+  // Modal Eliminar credencial
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [credentialToDelete, setCredentialToDelete] = useState<CredentialListItemDto | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   const installationsQuery = useQuery({
     queryKey: ["installations"],
@@ -132,6 +143,44 @@ export function InstallationsPage() {
     },
   });
 
+  const loadCredentialSecretMutation = useMutation({
+    mutationFn: (payload: { abonadoMm: string; credentialId: number }) =>
+      getInstallationCredentialSecret(payload.abonadoMm, payload.credentialId),
+    onSuccess: (data) => {
+      setEPassword(data.password ?? "");
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error cargando contraseña",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
+  });
+
+  const deleteCredentialMutation = useMutation({
+    mutationFn: (payload: { abonadoMm: string; credentialId: number; confirmation: string }) =>
+      deleteInstallationCredential(payload.abonadoMm, payload.credentialId, payload.confirmation),
+    onSuccess: async () => {
+      setDeleteOpen(false);
+      setCredentialToDelete(null);
+      setDeleteConfirmation("");
+
+      await qc.invalidateQueries({ queryKey: ["installationCredentials", selectedAbonadoMm] });
+      notifications.show({
+        title: "Credencial eliminada",
+        message: "La credencial se ha eliminado correctamente.",
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: "Error eliminando credencial",
+        message: err?.message ?? "Error desconocido",
+        color: "red",
+      });
+    },
+  });
+
   const rows = useMemo(() => {
     const items = credentialsQuery.data ?? [];
     if (!items.length) return null;
@@ -154,24 +203,49 @@ export function InstallationsPage() {
           )}
         </Table.Td>
         <Table.Td>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() => {
-              setEditing(c);
-              setELabel(c.label ?? "");
-              setEScope(c.scope ?? "General");
-              setEPriority(c.priority ?? 1);
-              setEIsActive(!!c.isActive);
-              setEditOpen(true);
-            }}
-          >
-            Editar
-          </Button>
+          <Group gap="xs" justify="flex-start" wrap="nowrap">
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => {
+                setEditing(c);
+                setELabel(c.label ?? "");
+                setEPassword("");
+                setEPasswordVisible(false);
+                setEScope(c.scope ?? "General");
+                setEPriority(c.priority ?? 1);
+                setEIsActive(!!c.isActive);
+                setEditOpen(true);
+
+                if (selectedAbonadoMm) {
+                  loadCredentialSecretMutation.mutate({
+                    abonadoMm: selectedAbonadoMm,
+                    credentialId: c.credentialId,
+                  });
+                }
+              }}
+            >
+              Editar
+            </Button>
+
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              color="red"
+              aria-label="Eliminar credencial"
+              onClick={() => {
+                setCredentialToDelete(c);
+                setDeleteConfirmation("");
+                setDeleteOpen(true);
+              }}
+            >
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Group>
         </Table.Td>
       </Table.Tr>
     ));
-  }, [credentialsQuery.data]);
+  }, [credentialsQuery.data, loadCredentialSecretMutation, selectedAbonadoMm]);
 
   return (
     <Stack gap="md">
@@ -298,6 +372,27 @@ export function InstallationsPage() {
           </Text>
 
           <TextInput label="Label" value={eLabel} onChange={(e) => setELabel(e.currentTarget.value)} />
+          <TextInput
+            label="Password"
+            type={ePasswordVisible ? "text" : "password"}
+            value={ePassword}
+            onChange={(e) => setEPassword(e.currentTarget.value)}
+            description="Puedes sobrescribir la contraseña existente."
+            rightSection={
+              <ActionIcon
+                variant="subtle"
+                onClick={() => setEPasswordVisible((v) => !v)}
+                aria-label={ePasswordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {ePasswordVisible ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+              </ActionIcon>
+            }
+          />
+          {loadCredentialSecretMutation.isPending && (
+            <Text size="xs" c="dimmed">
+              Cargando contraseña...
+            </Text>
+          )}
           <TextInput label="Scope" value={eScope} onChange={(e) => setEScope(e.currentTarget.value)} />
           <NumberInput
             label="Prioridad"
@@ -323,6 +418,7 @@ export function InstallationsPage() {
                   credentialId: editing.credentialId,
                   body: {
                     label: eLabel.trim() ? eLabel.trim() : null,
+                    password: ePassword.trim() ? ePassword : null,
                     scope: eScope.trim() ? eScope.trim() : "General",
                     priority: ePriority || 1,
                     isActive: eIsActive,
@@ -331,6 +427,79 @@ export function InstallationsPage() {
               }}
             >
               Guardar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal eliminar credencial */}
+      <Modal
+        opened={deleteOpen}
+        onClose={() => {
+          if (!deleteCredentialMutation.isPending) {
+            setDeleteOpen(false);
+            setCredentialToDelete(null);
+            setDeleteConfirmation("");
+          }
+        }}
+        title="Eliminar credencial"
+        centered
+      >
+        <Stack>
+          <Text>
+            Se eliminará esta credencial de la instalación.
+            <br />
+            Escribe <Text span fw={700}>delete</Text> para confirmar.
+          </Text>
+
+          <Card withBorder radius="md" p="sm">
+            <Text fw={600}>{credentialToDelete?.username ?? "-"}</Text>
+            <Text c="dimmed" size="sm">
+              Scope: {credentialToDelete?.scope ?? "-"}
+            </Text>
+            <Text c="dimmed" size="sm">
+              Prioridad: {credentialToDelete?.priority ?? "-"}
+            </Text>
+          </Card>
+
+          <TextInput
+            label="Escribe delete para confirmar"
+            placeholder="delete"
+            value={deleteConfirmation}
+            onChange={(e) => setDeleteConfirmation(e.currentTarget.value)}
+            disabled={deleteCredentialMutation.isPending}
+          />
+
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              onClick={() => {
+                setDeleteOpen(false);
+                setCredentialToDelete(null);
+                setDeleteConfirmation("");
+              }}
+              disabled={deleteCredentialMutation.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              color="red"
+              loading={deleteCredentialMutation.isPending}
+              disabled={
+                !selectedAbonadoMm ||
+                !credentialToDelete ||
+                deleteConfirmation.trim().toLowerCase() !== "delete"
+              }
+              onClick={() => {
+                if (!selectedAbonadoMm || !credentialToDelete) return;
+                deleteCredentialMutation.mutate({
+                  abonadoMm: selectedAbonadoMm,
+                  credentialId: credentialToDelete.credentialId,
+                  confirmation: "delete",
+                });
+              }}
+            >
+              Eliminar credencial
             </Button>
           </Group>
         </Stack>

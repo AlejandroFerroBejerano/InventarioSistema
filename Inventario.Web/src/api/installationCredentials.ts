@@ -22,6 +22,13 @@ export type UpdateCredentialRequest = {
   scope?: string | null;
   label?: string | null;
   isActive?: boolean;
+  password?: string | null;
+};
+
+export type CredentialSecretDto = {
+  credentialId: number;
+  username: string;
+  password: string;
 };
 
 export async function getInstallationCredentials(abonadoMm: string): Promise<CredentialListItemDto[]> {
@@ -65,5 +72,41 @@ export async function updateInstallationCredential(
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(txt || "No se pudo actualizar la credencial");
+  }
+}
+
+export async function getInstallationCredentialSecret(
+  abonadoMm: string,
+  credentialId: number
+): Promise<CredentialSecretDto> {
+  const res = await fetch(
+    `/api/installations/${encodeURIComponent(abonadoMm)}/credentials/${credentialId}/secret`
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || "No se pudo cargar la contraseña");
+  }
+
+  return res.json();
+}
+
+export async function deleteInstallationCredential(
+  abonadoMm: string,
+  credentialId: number,
+  confirmation: string
+): Promise<void> {
+  const res = await fetch(
+    `/api/installations/${encodeURIComponent(abonadoMm)}/credentials/${credentialId}`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation }),
+    }
+  );
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || "No se pudo eliminar la credencial");
   }
 }
