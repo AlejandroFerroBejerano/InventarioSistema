@@ -90,6 +90,11 @@ export async function downloadAgentInstaller(agentId: number, token: string, pla
   return res;
 }
 
+export async function regenerateEnrollmentToken(agentId: number) {
+  const res = await http.post<CreateAgentResponse>(`/api/agents/${agentId}/enrollment-token`);
+  return res.data;
+}
+
 export async function revokeAgent(id: number) {
   await http.post(`/api/agents/${id}/revoke`);
 }

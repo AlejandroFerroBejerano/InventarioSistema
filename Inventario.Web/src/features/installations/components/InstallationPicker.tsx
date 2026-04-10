@@ -5,9 +5,10 @@ import {
   Modal,
   Select,
   Stack,
-  TextInput,
   Text,
+  TextInput,
 } from "@mantine/core";
+import { useI18n } from "../../../app/i18n/AppI18nContext";
 
 export type InstallationListItem = {
   id: number;
@@ -34,20 +35,25 @@ export function InstallationPicker({
   onChange,
   loading,
   onCreate,
-  label = "Instalación",
-  placeholder = "Selecciona una instalación…",
+  label,
+  placeholder,
 }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [abonadoMm, setAbonadoMm] = useState("");
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const resolvedLabel = label ?? t("Instalacion", "Installation");
+  const resolvedPlaceholder =
+    placeholder ?? t("Selecciona una instalacion...", "Select an installation...");
+
   const data = useMemo(
     () =>
-      installations.map((i) => ({
-        value: i.abonadoMm,
-        label: `${i.abonadoMm} — ${i.name}`,
+      installations.map((installation) => ({
+        value: installation.abonadoMm,
+        label: `${installation.abonadoMm} - ${installation.name}`,
       })),
     [installations]
   );
@@ -58,7 +64,7 @@ export function InstallationPicker({
     setError(null);
 
     if (!abonadoMm.trim() || !name.trim()) {
-      setError("AbonadoMm y nombre son obligatorios");
+      setError(t("AbonadoMm y nombre son obligatorios", "AbonadoMm and name are required"));
       return;
     }
 
@@ -73,7 +79,7 @@ export function InstallationPicker({
       setAbonadoMm("");
       setName("");
     } catch {
-      setError("No se pudo crear la instalación");
+      setError(t("No se pudo crear la instalacion", "Could not create the installation"));
     } finally {
       setCreating(false);
     }
@@ -85,8 +91,8 @@ export function InstallationPicker({
         <Select
           searchable
           clearable
-          label={label}
-          placeholder={placeholder}
+          label={resolvedLabel}
+          placeholder={resolvedPlaceholder}
           data={data}
           value={value}
           onChange={onChange}
@@ -94,31 +100,35 @@ export function InstallationPicker({
         />
 
         <Button variant="light" onClick={() => setOpen(true)} disabled={!onCreate}>
-            Nueva
+          {t("Nueva", "New")}
         </Button>
       </Group>
 
-      <Modal opened={open} onClose={() => setOpen(false)} title="Nueva instalación">
+      <Modal
+        opened={open}
+        onClose={() => setOpen(false)}
+        title={t("Nueva instalacion", "New installation")}
+      >
         <Stack>
           <TextInput
             label="AbonadoMm"
             value={abonadoMm}
-            onChange={(e) => setAbonadoMm(e.currentTarget.value)}
+            onChange={(event) => setAbonadoMm(event.currentTarget.value)}
           />
           <TextInput
-            label="Nombre"
+            label={t("Nombre", "Name")}
             value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
+            onChange={(event) => setName(event.currentTarget.value)}
           />
 
-          {error && <Text c="red">{error}</Text>}
+          {error ? <Text c="red">{error}</Text> : null}
 
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setOpen(false)}>
-              Cancelar
+              {t("Cancelar", "Cancel")}
             </Button>
             <Button loading={creating} onClick={handleCreate} disabled={!onCreate}>
-              Crear
+              {t("Crear", "Create")}
             </Button>
           </Group>
         </Stack>

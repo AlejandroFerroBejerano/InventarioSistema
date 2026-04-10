@@ -216,7 +216,18 @@ public class ScanRunsController : ControllerBase
             var shouldUpdate = mode switch
             {
                 ScanRunApplyMode.LastWins => true,
-                ScanRunApplyMode.NoDegrade => IsUpgrade(asset.Status, h.Status),
+                ScanRunApplyMode.NoDegrade => ShouldUpdateNoDegrade(
+                    asset,
+                    h.Status,
+                    h.OpenPortsJson,
+                    h.Manufacturer,
+                    h.Model,
+                    h.Firmware,
+                    h.SerialNumber,
+                    h.Protocol,
+                    h.WebPort,
+                    h.SdkPort,
+                    h.CredentialId),
                 _ => false
             };
 
@@ -246,7 +257,7 @@ public class ScanRunsController : ControllerBase
             if (h.CredentialId.HasValue)
                 asset.PreferredCredentialId = h.CredentialId;
 
-            asset.LastSeenAt = applySeen;
+            asset.LastSeenAt = MaxSeenAt(asset.LastSeenAt, applySeen);
 
             updated++;
         }
@@ -325,6 +336,54 @@ public class ScanRunsController : ControllerBase
 
         return ir > cr;
     }
+
+    private static bool ShouldUpdateNoDegrade(
+        SystemAsset asset,
+        string? incomingStatus,
+        string? incomingOpenPortsJson,
+        string? incomingManufacturer,
+        string? incomingModel,
+        string? incomingFirmware,
+        string? incomingSerialNumber,
+        string? incomingProtocol,
+        int? incomingWebPort,
+        int? incomingSdkPort,
+        int? incomingCredentialId)
+    {
+        if (IsUpgrade(asset.Status, incomingStatus))
+            return true;
+
+        return HasValueForBlank(asset.Manufacturer, incomingManufacturer)
+            || HasValueForBlank(asset.Model, incomingModel)
+            || HasValueForBlank(asset.Firmware, incomingFirmware)
+            || HasValueForBlank(asset.SerialNumber, incomingSerialNumber)
+            || HasValueForBlank(asset.Protocol, incomingProtocol)
+            || HasPortEnrichment(asset.OpenPortsJson, incomingOpenPortsJson)
+            || (!asset.WebPort.HasValue && incomingWebPort.HasValue)
+            || (!asset.SdkPort.HasValue && incomingSdkPort.HasValue)
+            || (!asset.PreferredCredentialId.HasValue && incomingCredentialId.HasValue);
+    }
+
+    private static bool HasValueForBlank(string? current, string? incoming)
+        => string.IsNullOrWhiteSpace(current) && !string.IsNullOrWhiteSpace(incoming);
+
+    private static bool HasPortEnrichment(string? currentJson, string? incomingJson)
+    {
+        var currentPorts = TryParsePorts(currentJson);
+        var incomingPorts = TryParsePorts(incomingJson);
+
+        if (incomingPorts.Count == 0)
+            return false;
+
+        if (currentPorts.Count == 0)
+            return true;
+
+        var currentSet = currentPorts.ToHashSet();
+        return incomingPorts.Any(port => !currentSet.Contains(port));
+    }
+
+    private static DateTime MaxSeenAt(DateTime current, DateTime incoming)
+        => incoming > current ? incoming : current;
 
     // DELETE /api/scanruns/{id}
     [HttpDelete("{id:int}")]

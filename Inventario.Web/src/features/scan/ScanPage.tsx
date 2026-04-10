@@ -34,6 +34,7 @@ import {
   IconSearch,
   IconTrash,
 } from "@tabler/icons-react";
+import { useI18n } from "../../app/i18n/AppI18nContext";
 
 import { startScan, type ScanResponseDto } from "../../api/scans";
 import { InstallationPicker } from "../installations/components/InstallationPicker";
@@ -60,18 +61,21 @@ import {
   type ScanHostResultDto,
 } from "../../api/scanRuns";
 
-function statusBadge(status?: string | null) {
+function statusBadge(
+  status: string | null | undefined,
+  t: (spanish: string, english: string) => string
+) {
   const s = (status ?? "").toLowerCase();
   if (s === "authenticated")
     return (
       <Badge color="green" variant="light">
-        Auth
+        {t("Autenticado", "Authenticated")}
       </Badge>
     );
   if (s === "identified")
     return (
       <Badge color="blue" variant="light">
-        Id
+        {t("Identificado", "Identified")}
       </Badge>
     );
   if (s === "noports")
@@ -110,6 +114,7 @@ function csvEscape(value: unknown) {
 }
 
 export function ScanPage() {
+  const { t, formatDateTime } = useI18n();
   const qc = useQueryClient();
 
   // Instalaciones/abonados
@@ -125,14 +130,14 @@ export function ScanPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["installations"] });
       notifications.show({
-        title: "Instalación creada",
-        message: "Ya puedes usarla para escanear.",
+        title: t("Instalacion creada", "Installation created"),
+        message: t("Ya puedes usarla para escanear.", "You can use it for scanning now."),
       });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error creando instalación",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error creando instalacion", "Error creating installation"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -193,14 +198,14 @@ export function ScanPage() {
       setNewCidr("192.168.1.0/24");
       createModal.close();
       notifications.show({
-        title: "Red creada",
-        message: "La red se guardó correctamente.",
+        title: t("Red creada", "Network created"),
+        message: t("La red se guardo correctamente.", "The network was saved successfully."),
       });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error creando red",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error creando red", "Error creating network"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -217,8 +222,8 @@ export function ScanPage() {
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error obteniendo vista previa",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error obteniendo vista previa", "Error loading preview"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -242,14 +247,14 @@ export function ScanPage() {
       setNetworkToDelete(null);
       networkDeleteModal.close();
       notifications.show({
-        title: "Red eliminada",
-        message: "Se eliminó correctamente.",
+        title: t("Red eliminada", "Network deleted"),
+        message: t("Se elimino correctamente.", "It was deleted successfully."),
       });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error eliminando red",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error eliminando red", "Error deleting network"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -293,14 +298,14 @@ export function ScanPage() {
     onSuccess: ({ blob, filename }) => {
       downloadBlobFile(filename, blob);
       notifications.show({
-        title: "CSV exportado",
-        message: "La descarga se inició correctamente.",
+        title: t("CSV exportado", "CSV exported"),
+        message: t("La descarga se inicio correctamente.", "The download started successfully."),
       });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error exportando CSV",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error exportando CSV", "Error exporting CSV"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -322,14 +327,17 @@ export function ScanPage() {
       setScanRunToDelete(null);
       scanRunDeleteModal.close();
       notifications.show({
-        title: "Ejecución eliminada",
-        message: "Se eliminó el histórico seleccionado.",
+        title: t("Ejecucion eliminada", "Run deleted"),
+        message: t(
+          "Se elimino el historico seleccionado.",
+          "The selected history entry was deleted."
+        ),
       });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error eliminando ejecución",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error eliminando ejecucion", "Error deleting run"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -350,14 +358,17 @@ export function ScanPage() {
       scanRunApplyModal.close();
       setScanRunToApply(null);
       notifications.show({
-        title: "Inventario actualizado",
-        message: `Created ${result.created} | Updated ${result.updated} | Skipped ${result.skipped}`,
+        title: t("Inventario actualizado", "Inventory updated"),
+        message: t(
+          `Creados ${result.created} | Actualizados ${result.updated} | Omitidos ${result.skipped}`,
+          `Created ${result.created} | Updated ${result.updated} | Skipped ${result.skipped}`
+        ),
       });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error aplicando ejecucion",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error aplicando ejecucion", "Error applying run"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -396,8 +407,11 @@ export function ScanPage() {
     },
     onSuccess: async () => {
       notifications.show({
-        title: "Escaneo terminado",
-        message: "Se han recibido resultados del backend.",
+        title: t("Escaneo terminado", "Scan finished"),
+        message: t(
+          "Se han recibido resultados del backend.",
+          "Results were received from the backend."
+        ),
       });
 
       // Refrescar histórico automáticamente
@@ -405,8 +419,8 @@ export function ScanPage() {
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error al escanear",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error al escanear", "Scan error"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -558,11 +572,16 @@ export function ScanPage() {
 
   return (
     <Stack gap="md">
-      <Modal opened={createOpen} onClose={createModal.close} title="Nueva red" centered>
+      <Modal
+        opened={createOpen}
+        onClose={createModal.close}
+        title={t("Nueva red", "New network")}
+        centered
+      >
         <Stack>
           <TextInput
-            label="Nombre"
-            placeholder="Oficina · VLAN 20"
+            label={t("Nombre", "Name")}
+            placeholder={t("Oficina · VLAN 20", "Office · VLAN 20")}
             value={newName}
             onChange={(e) => setNewName(e.currentTarget.value)}
           />
@@ -580,16 +599,19 @@ export function ScanPage() {
                 const cidr = newCidr.trim();
                 if (!name || !cidr) {
                   notifications.show({
-                    title: "Faltan datos",
-                    message: "Nombre y CIDR son obligatorios.",
+                    title: t("Faltan datos", "Missing data"),
+                    message: t("Nombre y CIDR son obligatorios.", "Name and CIDR are required."),
                     color: "red",
                   });
                   return;
                 }
                 if (!(selectedAbonadoMm ?? "").trim()) {
                   notifications.show({
-                    title: "Falta instalación",
-                    message: "Selecciona una instalación antes de crear redes.",
+                    title: t("Falta instalacion", "Installation required"),
+                    message: t(
+                      "Selecciona una instalacion antes de crear redes.",
+                      "Select an installation before creating networks."
+                    ),
                     color: "red",
                   });
                   return;
@@ -598,7 +620,7 @@ export function ScanPage() {
                 createNetworkMutation.mutate();
               }}
             >
-              Crear
+              {t("Crear", "Create")}
             </Button>
           </Group>
         </Stack>
@@ -614,14 +636,17 @@ export function ScanPage() {
             setNetworkToDelete(null);
           }
         }}
-        title="Eliminar red"
+        title={t("Eliminar red", "Delete network")}
         centered
       >
         <Stack>
           <Text>
-            Se eliminará esta red y sus resultados asociados.
+            {t(
+              "Se eliminara esta red y sus resultados asociados.",
+              "This network and its associated results will be deleted."
+            )}
             <br />
-            El inventario NO se modificará.
+            {t("El inventario NO se modificara.", "Inventory will NOT be modified.")}
           </Text>
 
           <Card withBorder radius="md" p="sm">
@@ -630,13 +655,13 @@ export function ScanPage() {
               {networkDeletePreview?.networkCidr ?? networkToDelete?.cidr ?? "-"}
             </Text>
             <Text mt="sm" size="sm">
-              ScanRuns a borrar:{" "}
+              {t("ScanRuns a borrar:", "Scan runs to delete:")}{" "}
               <Text span fw={700}>
                 <NumberFormatter thousandSeparator value={networkDeletePreview?.scanRunsToDelete ?? 0} />
               </Text>
             </Text>
             <Text size="sm">
-              HostResults a borrar:{" "}
+              {t("HostResults a borrar:", "Host results to delete:")}{" "}
               <Text span fw={700}>
                 <NumberFormatter
                   thousandSeparator
@@ -647,7 +672,7 @@ export function ScanPage() {
           </Card>
 
           <TextInput
-            label="Escribe delete para confirmar"
+            label={t("Escribe delete para confirmar", "Type delete to confirm")}
             placeholder="delete"
             value={networkDeleteConfirmation}
             onChange={(e) => setNetworkDeleteConfirmation(e.currentTarget.value)}
@@ -665,7 +690,7 @@ export function ScanPage() {
               }}
               disabled={deleteNetworkMutation.isPending}
             >
-              Cancelar
+              {t("Cancelar", "Cancel")}
             </Button>
             <Button
               color="red"
@@ -682,7 +707,7 @@ export function ScanPage() {
                 });
               }}
             >
-              Eliminar red
+              {t("Eliminar red", "Delete network")}
             </Button>
           </Group>
         </Stack>
@@ -697,31 +722,28 @@ export function ScanPage() {
             setScanRunToDelete(null);
           }
         }}
-        title="Eliminar ejecución"
+        title={t("Eliminar ejecucion", "Delete run")}
         centered
       >
         <Stack>
           <Text>
             Se eliminará esta ejecución y sus resultados.
             <br />
-            El inventario NO se modificará.
+            {t("El inventario NO se modificara.", "Inventory will NOT be modified.")}
           </Text>
 
           <Card withBorder radius="md" p="sm">
             <Text fw={600}>Run #{scanRunToDelete?.id ?? "-"}</Text>
             <Text size="sm" c="dimmed">
-              Inicio:{" "}
-              {scanRunToDelete?.startedAt
-                ? new Date(scanRunToDelete.startedAt).toLocaleString()
-                : "-"}
+              {t("Inicio", "Started")}: {formatDateTime(scanRunToDelete?.startedAt)}
             </Text>
             <Text size="sm" c="dimmed">
-              Red: {scanRunToDelete?.networkCidr ?? "-"}
+              {t("Red", "Network")}: {scanRunToDelete?.networkCidr ?? "-"}
             </Text>
           </Card>
 
           <TextInput
-            label="Escribe delete para confirmar"
+            label={t("Escribe delete para confirmar", "Type delete to confirm")}
             placeholder="delete"
             value={scanRunDeleteConfirmation}
             onChange={(e) => setScanRunDeleteConfirmation(e.currentTarget.value)}
@@ -738,7 +760,7 @@ export function ScanPage() {
               }}
               disabled={deleteScanRunMutation.isPending}
             >
-              Cancelar
+              {t("Cancelar", "Cancel")}
             </Button>
             <Button
               color="red"
@@ -755,7 +777,7 @@ export function ScanPage() {
                 });
               }}
             >
-              Eliminar ejecución
+              {t("Eliminar ejecucion", "Delete run")}
             </Button>
           </Group>
         </Stack>
@@ -769,26 +791,29 @@ export function ScanPage() {
             setScanRunToApply(null);
           }
         }}
-        title="Aplicar ejecucion al inventario"
+        title={t("Aplicar ejecucion al inventario", "Apply run to inventory")}
         centered
       >
         <Stack>
           <Text>
-            Se aplicara esta ejecucion historica sobre el inventario vivo.
+            {t(
+              "Se aplicara esta ejecucion historica sobre el inventario vivo.",
+              "This historical run will be applied to the live inventory."
+            )}
             <br />
-            No se eliminaran activos.
+            {t("No se eliminaran activos.", "No assets will be deleted.")}
           </Text>
 
           <Card withBorder radius="md" p="sm">
             <Text fw={600}>Run #{scanRunToApply?.id ?? "-"}</Text>
             <Text size="sm" c="dimmed">
-              Inicio: {scanRunToApply?.startedAt ? new Date(scanRunToApply.startedAt).toLocaleString() : "-"}
+              {t("Inicio", "Started")}: {formatDateTime(scanRunToApply?.startedAt)}
             </Text>
             <Text size="sm" c="dimmed">
-              Red: {scanRunToApply?.networkCidr ?? "-"}
+              {t("Red", "Network")}: {scanRunToApply?.networkCidr ?? "-"}
             </Text>
             <Text size="sm" c="dimmed">
-              Modo: {scanRunApplyMode}
+              {t("Modo", "Mode")}: {scanRunApplyMode}
             </Text>
           </Card>
 
@@ -801,7 +826,7 @@ export function ScanPage() {
               }}
               disabled={applyScanRunMutation.isPending}
             >
-              Cancelar
+              {t("Cancelar", "Cancel")}
             </Button>
             <Button
               loading={applyScanRunMutation.isPending}
@@ -814,7 +839,7 @@ export function ScanPage() {
                 });
               }}
             >
-              Confirmar apply
+              {t("Confirmar aplicacion", "Confirm apply")}
             </Button>
           </Group>
         </Stack>
@@ -825,10 +850,13 @@ export function ScanPage() {
         <Group justify="space-between" align="flex-start">
           <Box>
             <Title order={3} style={{ letterSpacing: -0.3 }}>
-              Escaneo de red
+              {t("Escaneo de red", "Network scan")}
             </Title>
             <Text c="dimmed" size="sm">
-              Gestiona redes, lanza escaneos y revisa resultados agrupados por protocolo, puertos y fabricante.
+              {t(
+                "Gestiona redes, lanza escaneos y revisa resultados agrupados por protocolo, puertos y fabricante.",
+                "Manage networks, launch scans, and review results grouped by protocol, ports, and vendor."
+              )}
             </Text>
           </Box>
 
@@ -839,7 +867,7 @@ export function ScanPage() {
               disabled={!canScan}
               onClick={() => scanMutation.mutate()}
             >
-              Iniciar escaneo
+              {t("Iniciar escaneo", "Start scan")}
             </Button>
 
             <Button
@@ -848,7 +876,7 @@ export function ScanPage() {
               onClick={createModal.open}
               disabled={!Boolean((selectedAbonadoMm ?? "").trim())}
             >
-              Nueva red
+              {t("Nueva red", "New network")}
             </Button>
           </Group>
         </Group>
@@ -870,15 +898,20 @@ export function ScanPage() {
 
           <Group align="flex-end" justify="space-between" wrap="nowrap">
             <TextInput
-              label="Buscar en resultados"
+              label={t("Buscar en resultados", "Search results")}
               leftSection={<IconSearch size={16} />}
-              placeholder="IP, modelo, fabricante, protocolo…"
+              placeholder={t(
+                "IP, modelo, fabricante, protocolo...",
+                "IP, model, manufacturer, protocol..."
+              )}
               value={filter}
               onChange={(e) => setFilter(e.currentTarget.value)}
               w="100%"
             />
 
-            <Tooltip label={scanMutation.isPending ? "Escaneando…" : "Tiempo desde el inicio"}>
+            <Tooltip
+              label={scanMutation.isPending ? t("Escaneando...", "Scanning...") : t("Tiempo desde el inicio", "Time since start")}
+            >
               <Badge variant="light" size="lg">
                 {startedAtMs ? elapsedText : "-"}
               </Badge>
@@ -909,20 +942,24 @@ export function ScanPage() {
             radius="xl"
             size="sm"
             onClick={() => setNetworksCompact((v) => !v)}
-            aria-label={networksCompact ? "Expandir panel de redes" : "Condensar panel de redes"}
+            aria-label={
+              networksCompact
+                ? t("Expandir panel de redes", "Expand networks panel")
+                : t("Condensar panel de redes", "Collapse networks panel")
+            }
           >
             {networksCompact ? <IconChevronsRight size={16} /> : <IconChevronsLeft size={16} />}
           </ActionIcon>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconNetwork size={18} />
-              {!networksCompact && <Text fw={600}>Redes</Text>}
+              {!networksCompact && <Text fw={600}>{t("Redes", "Networks")}</Text>}
             </Group>
             {!networksCompact && (
               <ActionIcon
                 variant="subtle"
                 onClick={createModal.open}
-                aria-label="Nueva red"
+                aria-label={t("Nueva red", "New network")}
                 disabled={!Boolean((selectedAbonadoMm ?? "").trim())}
               >
                 <IconCirclePlus size={18} />
@@ -935,7 +972,7 @@ export function ScanPage() {
               <ActionIcon
                 variant="subtle"
                 onClick={createModal.open}
-                aria-label="Nueva red"
+                aria-label={t("Nueva red", "New network")}
                 disabled={!Boolean((selectedAbonadoMm ?? "").trim())}
               >
                 <IconCirclePlus size={18} />
@@ -949,7 +986,7 @@ export function ScanPage() {
                       variant={active ? "light" : "subtle"}
                       color={active ? "indigo" : undefined}
                       onClick={() => setSelectedNetworkId(n.id)}
-                      aria-label={`Seleccionar red ${n.name}`}
+                      aria-label={`${t("Seleccionar red", "Select network")} ${n.name}`}
                     >
                       <IconNetwork size={16} />
                     </ActionIcon>
@@ -962,11 +999,14 @@ export function ScanPage() {
             <Stack gap={6}>
               {networksQuery.isLoading ? (
                 <Text c="dimmed" size="sm">
-                  Cargando redes…
+                  {t("Cargando redes...", "Loading networks...")}
                 </Text>
               ) : (networksQuery.data?.length ?? 0) === 0 ? (
                 <Text c="dimmed" size="sm">
-                  No hay redes para esta instalación. Crea una para empezar.
+                  {t(
+                    "No hay redes para esta instalacion. Crea una para empezar.",
+                    "There are no networks for this installation. Create one to get started."
+                  )}
                 </Text>
               ) : (
                 (networksQuery.data ?? []).map((n) => {
@@ -997,7 +1037,7 @@ export function ScanPage() {
                         <ActionIcon
                           variant="subtle"
                           color="red"
-                          aria-label="Eliminar"
+                          aria-label={t("Eliminar", "Delete")}
                           loading={previewingNetworkId === n.id || deletingNetworkId === n.id}
                           disabled={networkDeletePreviewMutation.isPending}
                           onClick={(e) => {
@@ -1023,7 +1063,7 @@ export function ScanPage() {
             <Group justify="space-between" align="flex-start">
               <Box>
                 <Text c="dimmed" size="sm">
-                  Red seleccionada
+                  {t("Red seleccionada", "Selected network")}
                 </Text>
                 <Title order={4} style={{ letterSpacing: -0.2 }}>
                   {selectedNetwork?.name ?? "—"}
@@ -1041,7 +1081,7 @@ export function ScanPage() {
                   disabled={!canScan}
                   onClick={() => scanMutation.mutate()}
                 >
-                  Escanear
+                  {t("Escanear", "Scan")}
                 </Button>
 
                 <Button
@@ -1094,7 +1134,7 @@ export function ScanPage() {
                     );
                   }}
                 >
-                  Exportar CSV
+                  {t("Exportar CSV", "Export CSV")}
                 </Button>
               </Group>
             </Group>
@@ -1105,15 +1145,15 @@ export function ScanPage() {
               <Card withBorder radius="md" p="md">
                 <Group justify="space-between">
                   <Text c="dimmed" size="sm">
-                    Hosts
+                    {t("Hosts", "Hosts")}
                   </Text>
-                  <Badge variant="light">Total</Badge>
+                  <Badge variant="light">{t("Total", "Total")}</Badge>
                 </Group>
                 <Text fw={700} fz={26} style={{ letterSpacing: -0.4 }}>
                   <NumberFormatter thousandSeparator value={counts.total} />
                 </Text>
                 <Text c="dimmed" size="sm">
-                  Filtrados: <NumberFormatter thousandSeparator value={filteredHosts.length} />
+                  {t("Filtrados", "Filtered")}: <NumberFormatter thousandSeparator value={filteredHosts.length} />
                 </Text>
               </Card>
 
@@ -1121,7 +1161,7 @@ export function ScanPage() {
                 <Group justify="space-between" align="flex-start">
                   <Stack gap={2}>
                     <Text c="dimmed" size="sm">
-                      Estado
+                      {t("Estado", "Status")}
                     </Text>
                     <Text fw={700} fz={26} style={{ letterSpacing: -0.4 }}>
                       <NumberFormatter
@@ -1130,7 +1170,7 @@ export function ScanPage() {
                       />
                     </Text>
                     <Text c="dimmed" size="sm">
-                      Auth + Id
+                      {t("Auth + Id", "Auth + Id")}
                     </Text>
                   </Stack>
                   <RingProgress
@@ -1152,25 +1192,25 @@ export function ScanPage() {
 
               <Card withBorder radius="md" p="md">
                 <Text c="dimmed" size="sm">
-                  Protocolos
+                  {t("Protocolos", "Protocols")}
                 </Text>
                 <Text fw={700} fz={26} style={{ letterSpacing: -0.4 }}>
                   <NumberFormatter thousandSeparator value={protocols.length} />
                 </Text>
                 <Text c="dimmed" size="sm">
-                  Top: {protocols[0]?.[0] ?? "-"}
+                  {t("Top", "Top")}: {protocols[0]?.[0] ?? "-"}
                 </Text>
               </Card>
 
               <Card withBorder radius="md" p="md">
                 <Text c="dimmed" size="sm">
-                  Puertos
+                  {t("Puertos", "Ports")}
                 </Text>
                 <Text fw={700} fz={26} style={{ letterSpacing: -0.4 }}>
                   <NumberFormatter thousandSeparator value={ports.length} />
                 </Text>
                 <Text c="dimmed" size="sm">
-                  Top: {ports[0]?.[0] ?? "-"}
+                  {t("Top", "Top")}: {ports[0]?.[0] ?? "-"}
                 </Text>
               </Card>
             </SimpleGrid>
@@ -1179,11 +1219,11 @@ export function ScanPage() {
           <Card withBorder radius="lg" p="lg">
             <Tabs defaultValue="hosts" variant="outline" radius="lg">
               <Tabs.List>
-                <Tabs.Tab value="hosts">Hosts</Tabs.Tab>
-                <Tabs.Tab value="protocols">Protocolos</Tabs.Tab>
-                <Tabs.Tab value="ports">Puertos</Tabs.Tab>
-                <Tabs.Tab value="vendors">Fabricantes</Tabs.Tab>
-                <Tabs.Tab value="history">Histórico</Tabs.Tab>
+                <Tabs.Tab value="hosts">{t("Hosts", "Hosts")}</Tabs.Tab>
+                <Tabs.Tab value="protocols">{t("Protocolos", "Protocols")}</Tabs.Tab>
+                <Tabs.Tab value="ports">{t("Puertos", "Ports")}</Tabs.Tab>
+                <Tabs.Tab value="vendors">{t("Fabricantes", "Manufacturers")}</Tabs.Tab>
+                <Tabs.Tab value="history">{t("Historico", "History")}</Tabs.Tab>
               </Tabs.List>
 
               <Tabs.Panel value="hosts" pt="md">
@@ -1192,13 +1232,13 @@ export function ScanPage() {
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>IP</Table.Th>
-                        <Table.Th>Puertos</Table.Th>
-                        <Table.Th>Protocolo</Table.Th>
-                        <Table.Th>Fabricante</Table.Th>
-                        <Table.Th>Modelo</Table.Th>
+                        <Table.Th>{t("Puertos", "Ports")}</Table.Th>
+                        <Table.Th>{t("Protocolo", "Protocol")}</Table.Th>
+                        <Table.Th>{t("Fabricante", "Manufacturer")}</Table.Th>
+                        <Table.Th>{t("Modelo", "Model")}</Table.Th>
                         <Table.Th>Firmware</Table.Th>
-                        <Table.Th>Status</Table.Th>
-                        <Table.Th>Credencial</Table.Th>
+                        <Table.Th>{t("Estado", "Status")}</Table.Th>
+                        <Table.Th>{t("Credencial", "Credential")}</Table.Th>
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
@@ -1207,8 +1247,11 @@ export function ScanPage() {
                           <Table.Td colSpan={8}>
                             <Text c="dimmed">
                               {scanMutation.isPending
-                                ? "Escaneando…"
-                                : "Sin resultados. Selecciona una red y lanza un escaneo."}
+                                ? t("Escaneando...", "Scanning...")
+                                : t(
+                                    "Sin resultados. Selecciona una red y lanza un escaneo.",
+                                    "No results. Select a network and launch a scan."
+                                  )}
                             </Text>
                           </Table.Td>
                         </Table.Tr>
@@ -1224,7 +1267,7 @@ export function ScanPage() {
                               <Table.Td>{h.manufacturer ?? "-"}</Table.Td>
                               <Table.Td>{h.model ?? "-"}</Table.Td>
                               <Table.Td>{h.firmware ?? "-"}</Table.Td>
-                              <Table.Td>{statusBadge(h.status)}</Table.Td>
+                              <Table.Td>{statusBadge(h.status, t)}</Table.Td>
                               <Table.Td>{h.credentialUsername ?? "-"}</Table.Td>
                             </Table.Tr>
                           ))
@@ -1245,7 +1288,10 @@ export function ScanPage() {
                         </Badge>
                       </Group>
                       <Text c="dimmed" size="sm">
-                        {counts.total ? Math.round((v / counts.total) * 100) : 0}% del total
+                        {t(
+                          `${counts.total ? Math.round((v / counts.total) * 100) : 0}% del total`,
+                          `${counts.total ? Math.round((v / counts.total) * 100) : 0}% of total`
+                        )}
                       </Text>
                     </Card>
                   ))}
@@ -1263,7 +1309,10 @@ export function ScanPage() {
                         </Badge>
                       </Group>
                       <Text c="dimmed" size="sm">
-                        Presente en {counts.total ? Math.round((v / counts.total) * 100) : 0}% de hosts
+                        {t(
+                          `Presente en ${counts.total ? Math.round((v / counts.total) * 100) : 0}% de hosts`,
+                          `Present in ${counts.total ? Math.round((v / counts.total) * 100) : 0}% of hosts`
+                        )}
                       </Text>
                     </Card>
                   ))}
@@ -1281,7 +1330,10 @@ export function ScanPage() {
                         </Badge>
                       </Group>
                       <Text c="dimmed" size="sm">
-                        {counts.total ? Math.round((v / counts.total) * 100) : 0}% del total
+                        {t(
+                          `${counts.total ? Math.round((v / counts.total) * 100) : 0}% del total`,
+                          `${counts.total ? Math.round((v / counts.total) * 100) : 0}% of total`
+                        )}
                       </Text>
                     </Card>
                   ))}
@@ -1293,9 +1345,14 @@ export function ScanPage() {
               ------------------------------ */}
               <Tabs.Panel value="history" pt="md">
                 {scanRunsQuery.isLoading ? (
-                  <Text c="dimmed">Cargando histórico…</Text>
+                  <Text c="dimmed">{t("Cargando historico...", "Loading history...")}</Text>
                 ) : filteredScanRuns.length === 0 ? (
-                  <Text c="dimmed">Sin ejecuciones para la red seleccionada.</Text>
+                  <Text c="dimmed">
+                    {t(
+                      "Sin ejecuciones para la red seleccionada.",
+                      "There are no runs for the selected network."
+                    )}
+                  </Text>
                 ) : (
                   <SimpleGrid cols={{ base: 1, md: 12 }} spacing="md">
                     <Card
@@ -1305,7 +1362,7 @@ export function ScanPage() {
                       style={{ gridColumn: executionsCompact ? "span 3" : "span 5" }}
                     >
                       <Group justify="space-between" mb="sm">
-                        <Text fw={600}>Ejecuciones</Text>
+                        <Text fw={600}>{t("Ejecuciones", "Runs")}</Text>
                         <Group gap={6}>
                           <Badge variant="light">
                             <NumberFormatter
@@ -1317,8 +1374,8 @@ export function ScanPage() {
                             variant="light"
                             aria-label={
                               executionsCompact
-                                ? "Expandir columnas de ejecuciones"
-                                : "Condensar columnas de ejecuciones"
+                                ? t("Expandir columnas de ejecuciones", "Expand run columns")
+                                : t("Condensar columnas de ejecuciones", "Collapse run columns")
                             }
                             onClick={() => setExecutionsCompact((v) => !v)}
                           >
@@ -1335,12 +1392,12 @@ export function ScanPage() {
                         <Table highlightOnHover withTableBorder striped>
                           <Table.Thead>
                             <Table.Tr>
-                              <Table.Th>Inicio</Table.Th>
-                              {!executionsCompact && <Table.Th>Red</Table.Th>}
+                              <Table.Th>{t("Inicio", "Started")}</Table.Th>
+                              {!executionsCompact && <Table.Th>{t("Red", "Network")}</Table.Th>}
                               {!executionsCompact && <Table.Th>Auth</Table.Th>}
                               {!executionsCompact && <Table.Th>Id</Table.Th>}
                               {!executionsCompact && <Table.Th>NoPorts</Table.Th>}
-                              <Table.Th>Acciones</Table.Th>
+                              <Table.Th>{t("Acciones", "Actions")}</Table.Th>
                             </Table.Tr>
                           </Table.Thead>
                           <Table.Tbody>
@@ -1361,7 +1418,7 @@ export function ScanPage() {
                                 }}
                                 onClick={() => setSelectedScanRunId(r.id)}
                               >
-                                <Table.Td>{new Date(r.startedAt).toLocaleString()}</Table.Td>
+                                <Table.Td>{formatDateTime(r.startedAt)}</Table.Td>
                                 {!executionsCompact && <Table.Td>{r.networkCidr}</Table.Td>}
                                 {!executionsCompact && <Table.Td>{r.authenticatedCount}</Table.Td>}
                                 {!executionsCompact && <Table.Td>{r.identifiedCount}</Table.Td>}
@@ -1370,7 +1427,7 @@ export function ScanPage() {
                                   <Group gap={6} wrap="nowrap">
                                     <ActionIcon
                                       variant="subtle"
-                                      aria-label="Exportar CSV"
+                                      aria-label={t("Exportar CSV", "Export CSV")}
                                       loading={exportingScanRunId === r.id}
                                       disabled={deleteScanRunMutation.isPending}
                                       onClick={(e) => {
@@ -1383,7 +1440,7 @@ export function ScanPage() {
                                     <ActionIcon
                                       variant="subtle"
                                       color="red"
-                                      aria-label="Eliminar ejecución"
+                                      aria-label={t("Eliminar ejecucion", "Delete run")}
                                       loading={deletingScanRunId === r.id}
                                       disabled={deleteScanRunMutation.isPending}
                                       onClick={(e) => {
@@ -1410,7 +1467,8 @@ export function ScanPage() {
                     >
                       <Group justify="space-between" align="flex-end" mb="sm">
                         <Text fw={600}>
-                          Hosts {selectedScanRunId != null ? `(Run #${selectedScanRunId})` : ""}
+                          {t("Hosts", "Hosts")}{" "}
+                          {selectedScanRunId != null ? `(Run #${selectedScanRunId})` : ""}
                         </Text>
                         <Group gap="xs">
                           <Select
@@ -1443,28 +1501,30 @@ export function ScanPage() {
                               openScanRunApplyDialog(selectedScanRun);
                             }}
                           >
-                            Apply to Inventory
+                            {t("Aplicar al inventario", "Apply to inventory")}
                           </Button>
                         </Group>
                       </Group>
 
                       {selectedScanRunId == null ? (
-                        <Text c="dimmed">Selecciona una ejecución.</Text>
+                        <Text c="dimmed">
+                          {t("Selecciona una ejecucion.", "Select a run.")}
+                        </Text>
                       ) : scanRunHostsQuery.isLoading ? (
-                        <Text c="dimmed">Cargando hosts…</Text>
+                        <Text c="dimmed">{t("Cargando hosts...", "Loading hosts...")}</Text>
                       ) : scanRunHostsQuery.isError ? (
-                        <Text c="red">Error cargando hosts.</Text>
+                        <Text c="red">{t("Error cargando hosts.", "Error loading hosts.")}</Text>
                       ) : (
                         <ScrollArea h={280}>
                           <Table highlightOnHover withTableBorder striped>
                             <Table.Thead>
                               <Table.Tr>
                                 <Table.Th>IP</Table.Th>
-                                <Table.Th>Puertos</Table.Th>
-                                <Table.Th>Protocolo</Table.Th>
-                                <Table.Th>Fabricante</Table.Th>
-                                <Table.Th>Modelo</Table.Th>
-                                <Table.Th>Status</Table.Th>
+                                <Table.Th>{t("Puertos", "Ports")}</Table.Th>
+                                <Table.Th>{t("Protocolo", "Protocol")}</Table.Th>
+                                <Table.Th>{t("Fabricante", "Manufacturer")}</Table.Th>
+                                <Table.Th>{t("Modelo", "Model")}</Table.Th>
+                                <Table.Th>{t("Estado", "Status")}</Table.Th>
                               </Table.Tr>
                             </Table.Thead>
                             <Table.Tbody>
@@ -1475,7 +1535,7 @@ export function ScanPage() {
                                   <Table.Td>{h.protocol ?? "-"}</Table.Td>
                                   <Table.Td>{h.manufacturer ?? "-"}</Table.Td>
                                   <Table.Td>{h.model ?? "-"}</Table.Td>
-                                  <Table.Td>{h.status}</Table.Td>
+                                  <Table.Td>{statusBadge(h.status, t)}</Table.Td>
                                 </Table.Tr>
                               ))}
                             </Table.Tbody>

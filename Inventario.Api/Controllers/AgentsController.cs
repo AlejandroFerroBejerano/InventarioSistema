@@ -212,6 +212,32 @@ public class AgentsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:int}/enrollment-token")]
+    public async Task<ActionResult<CreateAgentResponse>> RegenerateEnrollmentToken(int id, CancellationToken ct)
+    {
+        var agent = await _db.RemoteAgents.FirstOrDefaultAsync(a => a.Id == id, ct);
+        if (agent is null)
+            return NotFound("Agent not found.");
+
+        if (agent.IsRevoked)
+            return BadRequest("Agent is revoked.");
+
+        var enrollmentToken = _tokenService.GenerateToken();
+        agent.EnrollmentTokenHash = _tokenService.Hash(enrollmentToken);
+        agent.EnrollmentExpiresAt = DateTime.UtcNow.AddDays(7);
+        agent.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new CreateAgentResponse
+        {
+            AgentId = agent.Id,
+            AgentCode = agent.AgentCode,
+            EnrollmentToken = enrollmentToken,
+            HubUrl = $"{Request.Scheme}://{Request.Host}/hubs/agents"
+        });
+    }
+
     [HttpGet("{id:int}/installer")]
     public async Task<IActionResult> DownloadInstaller(
         int id,

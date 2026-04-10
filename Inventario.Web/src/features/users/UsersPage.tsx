@@ -22,6 +22,7 @@ import {
   IconShieldLock,
   IconTrash,
 } from "@tabler/icons-react";
+import { useI18n } from "../../app/i18n/AppI18nContext";
 import {
   createUser,
   deleteUser,
@@ -29,8 +30,8 @@ import {
   setUserStatus,
   updateUser,
   type CreateUserRequest,
-  type UserDto,
   type UpdateUserRequest,
+  type UserDto,
 } from "../../api/users";
 import {
   confirmMfa,
@@ -54,12 +55,46 @@ const roleOptions: RoleOption[] = [
 
 const statusOptions = ["Active", "Disabled", "Deleted"];
 
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString();
+function renderUserStatus(status: string, t: (spanish: string, english: string) => string) {
+  return (
+    <Badge color={status === "Active" ? "green" : status === "Disabled" ? "orange" : "red"} variant="light">
+      {status === "Active"
+        ? t("Activo", "Active")
+        : status === "Disabled"
+          ? t("Deshabilitado", "Disabled")
+          : status === "Deleted"
+            ? t("Eliminado", "Deleted")
+            : status}
+    </Badge>
+  );
+}
+
+function renderMfaStatus(user: UserDto, t: (spanish: string, english: string) => string) {
+  if (user.isMfaEnabled) {
+    return (
+      <Badge color="teal" variant="light">
+        {t("Habilitado", "Enabled")}
+      </Badge>
+    );
+  }
+
+  if (user.isMfaRequiredByRole) {
+    return (
+      <Badge color="orange" variant="light">
+        {t("Requerido", "Required")}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge color="gray" variant="light">
+      {t("Deshabilitado", "Disabled")}
+    </Badge>
+  );
 }
 
 export function UsersPage() {
+  const { t, formatDateTime } = useI18n();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -102,14 +137,14 @@ export function UsersPage() {
       await qc.invalidateQueries({ queryKey: ["users"] });
       setCreateOpen(false);
       notifications.show({
-        title: "Usuario creado",
-        message: "El usuario quedo registrado.",
+        title: t("Usuario creado", "User created"),
+        message: t("El usuario quedo registrado.", "The user was registered."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error al crear",
-        message: error?.message ?? "No fue posible crear el usuario.",
+        title: t("Error al crear", "Error creating user"),
+        message: error?.message ?? t("No fue posible crear el usuario.", "Could not create the user."),
         color: "red",
       });
     },
@@ -122,14 +157,14 @@ export function UsersPage() {
       await qc.invalidateQueries({ queryKey: ["users"] });
       setEditOpen(false);
       notifications.show({
-        title: "Usuario actualizado",
-        message: "Los cambios fueron guardados.",
+        title: t("Usuario actualizado", "User updated"),
+        message: t("Los cambios fueron guardados.", "Changes were saved."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error actualizando",
-        message: error?.message ?? "No fue posible actualizar.",
+        title: t("Error actualizando", "Error updating user"),
+        message: error?.message ?? t("No fue posible actualizar.", "Could not update the user."),
         color: "red",
       });
     },
@@ -140,14 +175,14 @@ export function UsersPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["users"] });
       notifications.show({
-        title: "Estado actualizado",
-        message: "Se actualizo el estado del usuario.",
+        title: t("Estado actualizado", "Status updated"),
+        message: t("Se actualizo el estado del usuario.", "The user status was updated."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error de estado",
-        message: error?.message ?? "No se pudo cambiar el estado.",
+        title: t("Error de estado", "Status error"),
+        message: error?.message ?? t("No se pudo cambiar el estado.", "Could not change the status."),
         color: "red",
       });
     },
@@ -158,14 +193,14 @@ export function UsersPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["users"] });
       notifications.show({
-        title: "Usuario eliminado logicamente",
-        message: "No se mostrara en vistas por defecto.",
+        title: t("Usuario eliminado logicamente", "User soft-deleted"),
+        message: t("No se mostrara en vistas por defecto.", "It will no longer appear in default views."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error al eliminar",
-        message: error?.message ?? "No fue posible eliminar.",
+        title: t("Error al eliminar", "Error deleting user"),
+        message: error?.message ?? t("No fue posible eliminar.", "Could not delete the user."),
         color: "red",
       });
     },
@@ -178,8 +213,8 @@ export function UsersPage() {
     },
     onError: (error: any) => {
       notifications.show({
-        title: "No se pudo cargar MFA",
-        message: error?.message ?? "Error consultando setup MFA.",
+        title: t("No se pudo cargar MFA", "Could not load MFA"),
+        message: error?.message ?? t("Error consultando setup MFA.", "Error loading MFA setup."),
         color: "red",
       });
     },
@@ -191,14 +226,14 @@ export function UsersPage() {
       setRecoveryCodes(data.recoveryCodes ?? []);
       await qc.invalidateQueries({ queryKey: ["users"] });
       notifications.show({
-        title: "MFA habilitado",
-        message: "Se activaron codigos de recuperacion.",
+        title: t("MFA habilitado", "MFA enabled"),
+        message: t("Se activaron codigos de recuperacion.", "Recovery codes were enabled."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "No se pudo habilitar MFA",
-        message: error?.message ?? "Codigo invalido.",
+        title: t("No se pudo habilitar MFA", "Could not enable MFA"),
+        message: error?.message ?? t("Codigo invalido.", "Invalid code."),
         color: "red",
       });
     },
@@ -210,14 +245,14 @@ export function UsersPage() {
       await qc.invalidateQueries({ queryKey: ["users"] });
       setRecoveryCodes([]);
       notifications.show({
-        title: "MFA deshabilitado",
-        message: "El usuario ya no requiere segundo factor.",
+        title: t("MFA deshabilitado", "MFA disabled"),
+        message: t("El usuario ya no requiere segundo factor.", "The user no longer requires a second factor."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "No se pudo deshabilitar MFA",
-        message: error?.message ?? "Operacion no permitida.",
+        title: t("No se pudo deshabilitar MFA", "Could not disable MFA"),
+        message: error?.message ?? t("Operacion no permitida.", "Operation not allowed."),
         color: "red",
       });
     },
@@ -228,14 +263,14 @@ export function UsersPage() {
     onSuccess: (data) => {
       setRecoveryCodes(data.recoveryCodes ?? []);
       notifications.show({
-        title: "Codigos regenerados",
-        message: "Guarda los nuevos codigos de recuperacion.",
+        title: t("Codigos regenerados", "Codes regenerated"),
+        message: t("Guarda los nuevos codigos de recuperacion.", "Save the new recovery codes."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "No se pudo regenerar",
-        message: error?.message ?? "Operacion no permitida.",
+        title: t("No se pudo regenerar", "Could not regenerate"),
+        message: error?.message ?? t("Operacion no permitida.", "Operation not allowed."),
         color: "red",
       });
     },
@@ -281,8 +316,11 @@ export function UsersPage() {
   async function saveCreate() {
     if (!form.email.trim() || !form.password.trim() || !form.displayName.trim()) {
       notifications.show({
-        title: "Campos incompletos",
-        message: "Email, password y nombre visible son obligatorios.",
+        title: t("Campos incompletos", "Missing fields"),
+        message: t(
+          "Email, password y nombre visible son obligatorios.",
+          "Email, password, and display name are required."
+        ),
         color: "red",
       });
       return;
@@ -318,8 +356,8 @@ export function UsersPage() {
     const code = mfaCode.trim();
     if (!code) {
       notifications.show({
-        title: "Falta codigo",
-        message: "Introduce el codigo del autenticador.",
+        title: t("Falta codigo", "Missing code"),
+        message: t("Introduce el codigo del autenticador.", "Enter the authenticator code."),
         color: "red",
       });
       return;
@@ -331,40 +369,44 @@ export function UsersPage() {
   useEffect(() => {
     if (!usersQuery.isRefetching && usersQuery.isError) {
       notifications.show({
-        title: "Error cargando usuarios",
-        message: "No se pudo obtener el listado de usuarios.",
+        title: t("Error cargando usuarios", "Error loading users"),
+        message: t("No se pudo obtener el listado de usuarios.", "Could not load the user list."),
         color: "red",
       });
     }
-  }, [usersQuery.isError, usersQuery.isRefetching]);
+  }, [t, usersQuery.isError, usersQuery.isRefetching]);
 
   return (
     <Stack gap="md">
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md">
-          <Title order={3}>Gestion de usuarios (Fase 2)</Title>
+          <Title order={3}>{t("Gestion de usuarios", "User management")}</Title>
           <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Crear usuario
+            {t("Crear usuario", "Create user")}
           </Button>
         </Group>
 
         <Group wrap="wrap" mb="md">
-          <TextInput label="Estado" value={statusFilter} onChange={(e) => setStatusFilter(e.currentTarget.value)} />
+          <TextInput
+            label={t("Estado", "Status")}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.currentTarget.value)}
+          />
           <Select
-            label="Rol"
+            label={t("Rol", "Role")}
             clearable
             value={roleFilter || null}
             data={roleOptions}
             onChange={(value) => setRoleFilter(value ?? "")}
           />
           <Select
-            label="Incluir eliminados"
-            value={includeDeleted ? "Si" : "No"}
+            label={t("Incluir eliminados", "Include deleted")}
+            value={includeDeleted ? "yes" : "no"}
             data={[
-              { value: "No", label: "No" },
-              { value: "Si", label: "Si" },
+              { value: "no", label: t("No", "No") },
+              { value: "yes", label: t("Si", "Yes") },
             ]}
-            onChange={(value) => setIncludeDeleted(value === "Si")}
+            onChange={(value) => setIncludeDeleted(value === "yes")}
           />
         </Group>
 
@@ -372,62 +414,48 @@ export function UsersPage() {
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Email</Table.Th>
-              <Table.Th>Nombre</Table.Th>
-              <Table.Th>Estado</Table.Th>
-              <Table.Th>Roles</Table.Th>
+              <Table.Th>{t("Nombre", "Name")}</Table.Th>
+              <Table.Th>{t("Estado", "Status")}</Table.Th>
+              <Table.Th>{t("Roles", "Roles")}</Table.Th>
               <Table.Th>MFA</Table.Th>
-              <Table.Th>Ultimo acceso</Table.Th>
-              <Table.Th>Creacion</Table.Th>
-              <Table.Th>Acciones</Table.Th>
+              <Table.Th>{t("Ultimo acceso", "Last access")}</Table.Th>
+              <Table.Th>{t("Creacion", "Created")}</Table.Th>
+              <Table.Th>{t("Acciones", "Actions")}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {usersQuery.isLoading ? (
               <Table.Tr>
-                <Table.Td colSpan={8}>Cargando...</Table.Td>
+                <Table.Td colSpan={8}>{t("Cargando...", "Loading...")}</Table.Td>
               </Table.Tr>
             ) : users.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={8}>No hay usuarios.</Table.Td>
+                <Table.Td colSpan={8}>{t("No hay usuarios.", "There are no users.")}</Table.Td>
               </Table.Tr>
             ) : (
               users.map((user) => (
                 <Table.Tr key={user.id}>
                   <Table.Td>{user.email}</Table.Td>
                   <Table.Td>{user.displayName}</Table.Td>
-                  <Table.Td>
-                    <Badge color={user.status === "Active" ? "green" : "red"} variant="light">
-                      {user.status}
-                    </Badge>
-                  </Table.Td>
+                  <Table.Td>{renderUserStatus(user.status, t)}</Table.Td>
                   <Table.Td>{(user.roles ?? []).join(", ") || "-"}</Table.Td>
-                  <Table.Td>
-                    {user.isMfaEnabled ? (
-                      <Badge color="teal" variant="light">
-                        Enabled
-                      </Badge>
-                    ) : user.isMfaRequiredByRole ? (
-                      <Badge color="orange" variant="light">
-                        Required
-                      </Badge>
-                    ) : (
-                      <Badge color="gray" variant="light">
-                        Disabled
-                      </Badge>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{formatDate(user.lastLoginUtc)}</Table.Td>
-                  <Table.Td>{formatDate(user.createdAtUtc)}</Table.Td>
+                  <Table.Td>{renderMfaStatus(user, t)}</Table.Td>
+                  <Table.Td>{formatDateTime(user.lastLoginUtc)}</Table.Td>
+                  <Table.Td>{formatDateTime(user.createdAtUtc)}</Table.Td>
                   <Table.Td>
                     <Group gap="xs">
-                      <ActionIcon variant="subtle" onClick={() => openEdit(user)} title="Editar">
+                      <ActionIcon
+                        variant="subtle"
+                        onClick={() => openEdit(user)}
+                        title={t("Editar", "Edit")}
+                      >
                         <IconEdit size={16} />
                       </ActionIcon>
                       <ActionIcon
                         color="violet"
                         variant="subtle"
                         onClick={() => openMfa(user)}
-                        title="Configurar MFA"
+                        title={t("Configurar MFA", "Configure MFA")}
                       >
                         <IconShieldLock size={16} />
                       </ActionIcon>
@@ -440,7 +468,7 @@ export function UsersPage() {
                             status: user.status === "Active" ? "Disabled" : "Active",
                           })
                         }
-                        title={user.status === "Active" ? "Desactivar" : "Activar"}
+                        title={user.status === "Active" ? t("Desactivar", "Disable") : t("Activar", "Activate")}
                       >
                         <IconPower size={16} />
                       </ActionIcon>
@@ -448,7 +476,7 @@ export function UsersPage() {
                         color="red"
                         variant="subtle"
                         onClick={() => deleteMutation.mutate(user.id)}
-                        title="Eliminar logico"
+                        title={t("Eliminar logicamente", "Soft delete")}
                       >
                         <IconTrash size={16} />
                       </ActionIcon>
@@ -461,90 +489,98 @@ export function UsersPage() {
         </Table>
       </Card>
 
-      <Modal opened={createOpen} onClose={() => setCreateOpen(false)} title="Crear usuario">
+      <Modal
+        opened={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title={t("Crear usuario", "Create user")}
+      >
         <Stack>
           <TextInput
             label="Email"
             value={form.email}
-            onChange={(event) => setForm((f) => ({ ...f, email: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, email: event.currentTarget.value }))}
           />
           <TextInput
-            label="Password"
+            label={t("Password", "Password")}
             value={form.password}
-            onChange={(event) => setForm((f) => ({ ...f, password: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, password: event.currentTarget.value }))}
             type="password"
           />
           <TextInput
-            label="Nombre"
+            label={t("Nombre", "Name")}
             value={form.displayName}
-            onChange={(event) => setForm((f) => ({ ...f, displayName: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, displayName: event.currentTarget.value }))}
           />
           <TextInput
-            label="Usuario"
+            label={t("Usuario", "Username")}
             value={form.userName}
-            onChange={(event) => setForm((f) => ({ ...f, userName: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, userName: event.currentTarget.value }))}
           />
           <TextInput
-            label="Organizacion"
+            label={t("Organizacion", "Organization")}
             value={form.organizationScope}
-            onChange={(event) => setForm((f) => ({ ...f, organizationScope: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, organizationScope: event.currentTarget.value }))}
           />
           <Select
-            label="Estado"
+            label={t("Estado", "Status")}
             value={form.status}
             data={statusOptions}
-            onChange={(value) => setForm((f) => ({ ...f, status: value ?? "Active" }))}
+            onChange={(value) => setForm((current) => ({ ...current, status: value ?? "Active" }))}
           />
           <Select
-            label="Rol"
+            label={t("Rol", "Role")}
             clearable
             value={form.role || null}
             data={roleOptions}
-            onChange={(value) => setForm((f) => ({ ...f, role: value ?? "" }))}
+            onChange={(value) => setForm((current) => ({ ...current, role: value ?? "" }))}
           />
           <Button loading={createMutation.isPending} onClick={saveCreate}>
-            Guardar
+            {t("Guardar", "Save")}
           </Button>
         </Stack>
       </Modal>
 
-      <Modal opened={editOpen} onClose={() => setEditOpen(false)} title="Editar usuario">
+      <Modal
+        opened={editOpen}
+        onClose={() => setEditOpen(false)}
+        title={t("Editar usuario", "Edit user")}
+      >
         <Stack>
           <TextInput
             label="Email"
             value={form.email}
-            onChange={(event) => setForm((f) => ({ ...f, email: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, email: event.currentTarget.value }))}
           />
           <TextInput
-            label="Nombre"
+            label={t("Nombre", "Name")}
             value={form.displayName}
-            onChange={(event) => setForm((f) => ({ ...f, displayName: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, displayName: event.currentTarget.value }))}
           />
           <TextInput
-            label="Usuario"
+            label={t("Usuario", "Username")}
             value={form.userName}
-            onChange={(event) => setForm((f) => ({ ...f, userName: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, userName: event.currentTarget.value }))}
           />
           <TextInput
-            label="Organizacion"
+            label={t("Organizacion", "Organization")}
             value={form.organizationScope}
-            onChange={(event) => setForm((f) => ({ ...f, organizationScope: event.currentTarget.value }))}
+            onChange={(event) => setForm((current) => ({ ...current, organizationScope: event.currentTarget.value }))}
           />
           <Select
-            label="Estado"
+            label={t("Estado", "Status")}
             value={form.status}
             data={statusOptions}
-            onChange={(value) => setForm((f) => ({ ...f, status: value ?? "Active" }))}
+            onChange={(value) => setForm((current) => ({ ...current, status: value ?? "Active" }))}
           />
           <Select
-            label="Rol"
+            label={t("Rol", "Role")}
             clearable
             value={form.role || null}
             data={roleOptions}
-            onChange={(value) => setForm((f) => ({ ...f, role: value ?? "" }))}
+            onChange={(value) => setForm((current) => ({ ...current, role: value ?? "" }))}
           />
           <Button loading={updateMutation.isPending} onClick={saveEdit}>
-            Guardar cambios
+            {t("Guardar cambios", "Save changes")}
           </Button>
         </Stack>
       </Modal>
@@ -552,52 +588,43 @@ export function UsersPage() {
       <Modal
         opened={mfaOpen}
         onClose={() => setMfaOpen(false)}
-        title={mfaUser ? `MFA de ${mfaUser.email}` : "Gestion MFA"}
+        title={mfaUser ? `${t("MFA de", "MFA for")} ${mfaUser.email}` : t("Gestion MFA", "MFA management")}
         size="lg"
       >
         <Stack>
           {mfaUser ? (
             <>
               <Group gap="xs">
-                <Text fw={600}>Estado:</Text>
-                {mfaUser.isMfaEnabled ? (
-                  <Badge color="teal" variant="light">
-                    Enabled
-                  </Badge>
-                ) : (
-                  <Badge color={mfaUser.isMfaRequiredByRole ? "orange" : "gray"} variant="light">
-                    {mfaUser.isMfaRequiredByRole ? "Required by role" : "Disabled"}
-                  </Badge>
-                )}
+                <Text fw={600}>{t("Estado:", "Status:")}</Text>
+                {renderMfaStatus(mfaUser, t)}
               </Group>
 
               {loadMfaSetupMutation.isPending ? (
-                <Text c="dimmed">Cargando datos MFA...</Text>
+                <Text c="dimmed">{t("Cargando datos MFA...", "Loading MFA data...")}</Text>
               ) : null}
 
               {mfaSetupData && !mfaUser.isMfaEnabled ? (
                 <>
                   <Text size="sm" c="dimmed">
-                    Escanea el URI en tu app de autenticacion o usa la clave manual.
+                    {t(
+                      "Escanea el URI en tu app de autenticacion o usa la clave manual.",
+                      "Scan the URI in your authenticator app or use the manual key."
+                    )}
                   </Text>
                   <TextInput
-                    label="Clave manual"
+                    label={t("Clave manual", "Manual key")}
                     value={mfaSetupData.manualEntryCode ?? ""}
                     readOnly
                   />
+                  <TextInput label="OTP URI" value={mfaSetupData.qrCodeUri ?? ""} readOnly />
                   <TextInput
-                    label="URI OTP"
-                    value={mfaSetupData.qrCodeUri ?? ""}
-                    readOnly
-                  />
-                  <TextInput
-                    label="Codigo actual"
+                    label={t("Codigo actual", "Current code")}
                     value={mfaCode}
                     onChange={(event) => setMfaCode(event.currentTarget.value)}
                     placeholder="123456"
                   />
                   <Button loading={confirmMfaMutation.isPending} onClick={confirmSelectedMfa}>
-                    Confirmar y habilitar MFA
+                    {t("Confirmar y habilitar MFA", "Confirm and enable MFA")}
                   </Button>
                 </>
               ) : null}
@@ -609,7 +636,7 @@ export function UsersPage() {
                     loading={regenerateRecoveryMutation.isPending}
                     onClick={() => regenerateRecoveryMutation.mutate(mfaUser.id)}
                   >
-                    Regenerar recovery codes
+                    {t("Regenerar codigos de recuperacion", "Regenerate recovery codes")}
                   </Button>
                   <Button
                     color="red"
@@ -617,7 +644,7 @@ export function UsersPage() {
                     loading={disableMfaMutation.isPending}
                     onClick={() => disableMfaMutation.mutate(mfaUser.id)}
                   >
-                    Deshabilitar MFA
+                    {t("Deshabilitar MFA", "Disable MFA")}
                   </Button>
                 </Group>
               ) : null}
@@ -625,7 +652,12 @@ export function UsersPage() {
               {recoveryCodes.length > 0 ? (
                 <Card withBorder radius="md" p="sm">
                   <Stack gap="xs">
-                    <Text fw={600}>Recovery codes (guardalos en lugar seguro)</Text>
+                    <Text fw={600}>
+                      {t(
+                        "Codigos de recuperacion (guardalos en lugar seguro)",
+                        "Recovery codes (store them in a safe place)"
+                      )}
+                    </Text>
                     {recoveryCodes.map((code) => (
                       <Text key={code} ff="monospace">
                         {code}
@@ -636,7 +668,7 @@ export function UsersPage() {
               ) : null}
             </>
           ) : (
-            <Text c="dimmed">Selecciona un usuario.</Text>
+            <Text c="dimmed">{t("Selecciona un usuario.", "Select a user.")}</Text>
           )}
         </Stack>
       </Modal>

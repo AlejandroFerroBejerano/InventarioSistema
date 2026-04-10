@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   AppShell,
   Badge,
@@ -29,8 +29,10 @@ import {
   IconLogout,
   IconUserCircle,
   IconUsers,
+  IconWorld,
 } from "@tabler/icons-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useI18n } from "../app/i18n/AppI18nContext";
 import { useAppTheme, type AppStylePreset } from "../app/theme/AppThemeContext";
 import { useAuth } from "../auth/AuthContext";
 
@@ -58,6 +60,7 @@ export function AppShellLayout({ children }: Props) {
   const [opened, { toggle }] = useDisclosure();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const { stylePreset, setStylePreset } = useAppTheme();
+  const { language, setLanguage, t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, hasAnyRole, logout } = useAuth();
@@ -97,7 +100,7 @@ export function AppShellLayout({ children }: Props) {
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
             <Group gap={8} wrap="nowrap">
               <Title order={4} style={{ letterSpacing: -0.2 }}>
-                Inventario Activos
+                {t("Inventario Activos", "Asset Inventory")}
               </Title>
               <Badge variant="light" visibleFrom="sm">
                 Beta
@@ -114,28 +117,28 @@ export function AppShellLayout({ children }: Props) {
           >
             <Tabs.List>
               <Tabs.Tab value="/scan" leftSection={<IconActivity size={16} />}>
-                Escaneo
+                {t("Escaneo", "Scan")}
               </Tabs.Tab>
               <Tabs.Tab value="/assets" leftSection={<IconNetwork size={16} />}>
-                Activos
+                {t("Activos", "Assets")}
               </Tabs.Tab>
               <Tabs.Tab value="/agents" leftSection={<IconRobot size={16} />}>
-                Agentes
+                {t("Agentes", "Agents")}
               </Tabs.Tab>
               {canManageUsers ? (
                 <Tabs.Tab value="/users" leftSection={<IconUsers size={16} />}>
-                  Usuarios
+                  {t("Usuarios", "Users")}
                 </Tabs.Tab>
               ) : null}
               <Tabs.Tab value="/installations" leftSection={<IconKey size={16} />}>
-                Credenciales
+                {t("Credenciales", "Credentials")}
               </Tabs.Tab>
               <Tabs.Tab value="/sessions" leftSection={<IconActivity size={16} />}>
-                Sesiones
+                {t("Sesiones", "Sessions")}
               </Tabs.Tab>
               {canViewAudit ? (
                 <Tabs.Tab value="/audit" leftSection={<IconShieldLock size={16} />}>
-                  Auditoria
+                  {t("Auditoria", "Audit")}
                 </Tabs.Tab>
               ) : null}
             </Tabs.List>
@@ -144,13 +147,36 @@ export function AppShellLayout({ children }: Props) {
           <Menu position="bottom-end" shadow="md" width={220} withArrow>
             <Menu.Target>
               <Button variant="light" leftSection={<IconUserCircle size={16} />} size="sm">
-                {user?.displayName || user?.email || "Cuenta"}
+                {user?.displayName || user?.email || t("Cuenta", "Account")}
               </Button>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Label>{user?.displayName || user?.email}</Menu.Label>
               <Menu.Item leftSection={<IconLogout size={16} />} onClick={onLogout}>
-                Cerrar sesion
+                {t("Cerrar sesion", "Sign out")}
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+
+          <Menu position="bottom-end" shadow="md" width={180} withArrow>
+            <Menu.Target>
+              <Button variant="subtle" leftSection={<IconWorld size={16} />} size="sm">
+                {t("Idioma", "Language")}
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>{t("Selecciona idioma", "Choose language")}</Menu.Label>
+              <Menu.Item
+                rightSection={language === "es" ? <IconCheck size={14} /> : null}
+                onClick={() => setLanguage("es")}
+              >
+                Espanol
+              </Menu.Item>
+              <Menu.Item
+                rightSection={language === "en" ? <IconCheck size={14} /> : null}
+                onClick={() => setLanguage("en")}
+              >
+                English
               </Menu.Item>
             </Menu.Dropdown>
           </Menu>
@@ -158,37 +184,37 @@ export function AppShellLayout({ children }: Props) {
           <Menu position="bottom-end" shadow="md" width={280} withArrow>
             <Menu.Target>
               <Button variant="subtle" leftSection={<IconPalette size={16} />} size="sm">
-                Tema
+                {t("Tema", "Theme")}
               </Button>
             </Menu.Target>
 
             <Menu.Dropdown>
-              <Menu.Label>Modo de color</Menu.Label>
+              <Menu.Label>{t("Modo de color", "Color mode")}</Menu.Label>
               <Menu.Item
                 leftSection={<IconSun size={16} />}
                 rightSection={colorScheme === "light" ? <IconCheck size={14} /> : null}
                 onClick={() => setColorScheme("light")}
               >
-                Claro
+                {t("Claro", "Light")}
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconMoon size={16} />}
                 rightSection={colorScheme === "dark" ? <IconCheck size={14} /> : null}
                 onClick={() => setColorScheme("dark")}
               >
-                Oscuro
+                {t("Oscuro", "Dark")}
               </Menu.Item>
               <Menu.Item
                 leftSection={<IconDeviceDesktop size={16} />}
                 rightSection={colorScheme === "auto" ? <IconCheck size={14} /> : null}
                 onClick={() => setColorScheme("auto")}
               >
-                Auto (sistema)
+                {t("Auto (sistema)", "Auto (system)")}
               </Menu.Item>
 
               <Divider my="xs" />
 
-              <Menu.Label>Estilo visual</Menu.Label>
+              <Menu.Label>{t("Estilo visual", "Visual style")}</Menu.Label>
               {styleOptions.map((option) => (
                 <Menu.Item
                   key={option.value}
@@ -202,7 +228,10 @@ export function AppShellLayout({ children }: Props) {
 
               <Divider my="xs" />
               <Text px="sm" py={4} c="dimmed" size="xs">
-                El modo y estilo quedan guardados para futuras sesiones.
+                {t(
+                  "El modo y estilo quedan guardados para futuras sesiones.",
+                  "Mode and style are saved for future sessions."
+                )}
               </Text>
             </Menu.Dropdown>
           </Menu>
@@ -211,26 +240,26 @@ export function AppShellLayout({ children }: Props) {
 
       <AppShell.Navbar p="sm">
         <NavLink
-          label="Escaneo"
+          label={t("Escaneo", "Scan")}
           leftSection={<IconActivity size={18} />}
           active={isActive("/scan")}
           onClick={() => navigate("/scan")}
         />
         <NavLink
-          label="Activos"
+          label={t("Activos", "Assets")}
           leftSection={<IconNetwork size={18} />}
           active={isActive("/assets")}
           onClick={() => navigate("/assets")}
         />
         <NavLink
-          label="Agentes"
+          label={t("Agentes", "Agents")}
           leftSection={<IconRobot size={18} />}
           active={isActive("/agents")}
           onClick={() => navigate("/agents")}
         />
         {canManageUsers ? (
           <NavLink
-            label="Usuarios"
+            label={t("Usuarios", "Users")}
             leftSection={<IconUsers size={18} />}
             active={isActive("/users")}
             onClick={() => navigate("/users")}
@@ -238,20 +267,20 @@ export function AppShellLayout({ children }: Props) {
         ) : null}
 
         <NavLink
-          label="Credenciales"
+          label={t("Credenciales", "Credentials")}
           leftSection={<IconKey size={18} />}
           active={isActive("/installations")}
           onClick={() => navigate("/installations")}
         />
         <NavLink
-          label="Sesiones"
+          label={t("Sesiones", "Sessions")}
           leftSection={<IconActivity size={18} />}
           active={isActive("/sessions")}
           onClick={() => navigate("/sessions")}
         />
         {canViewAudit ? (
           <NavLink
-            label="Auditoria"
+            label={t("Auditoria", "Audit")}
             leftSection={<IconShieldLock size={18} />}
             active={isActive("/audit")}
             onClick={() => navigate("/audit")}

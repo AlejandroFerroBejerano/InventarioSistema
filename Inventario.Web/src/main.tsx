@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import App from "./app/App";
 import { AuthProvider } from "./auth/AuthContext";
+import { AppI18nContext, type AppLanguage } from "./app/i18n/AppI18nContext";
 import { AppThemeContext, type AppStylePreset } from "./app/theme/AppThemeContext";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
@@ -73,10 +74,18 @@ export function AppRoot() {
     key: "inventario-style-preset",
     defaultValue: "tech-corporate",
   });
+  const [language, setLanguage] = useLocalStorage<AppLanguage>({
+    key: "inventario-language",
+    defaultValue: "es",
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute("data-app-style", stylePreset);
   }, [stylePreset]);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   const theme = useMemo(() => {
     const presetTheme = {
@@ -101,21 +110,37 @@ export function AppRoot() {
     });
   }, [stylePreset]);
 
+  const i18nValue = useMemo(
+    () => ({
+      language,
+      setLanguage,
+      t: (spanish: string, english: string) => (language === "es" ? spanish : english),
+      formatDateTime: (value?: string | null) => {
+        if (!value) return "-";
+        const locale = language === "es" ? "es-ES" : "en-US";
+        return new Date(value).toLocaleString(locale);
+      },
+    }),
+    [language, setLanguage]
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppThemeContext.Provider value={{ stylePreset, setStylePreset }}>
-          <MantineProvider
-            colorSchemeManager={colorSchemeManager}
-            defaultColorScheme="auto"
-            theme={theme}
-          >
-            <Notifications position="top-right" />
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </MantineProvider>
-        </AppThemeContext.Provider>
+        <AppI18nContext.Provider value={i18nValue}>
+          <AppThemeContext.Provider value={{ stylePreset, setStylePreset }}>
+            <MantineProvider
+              colorSchemeManager={colorSchemeManager}
+              defaultColorScheme="auto"
+              theme={theme}
+            >
+              <Notifications position="top-right" />
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </MantineProvider>
+          </AppThemeContext.Provider>
+        </AppI18nContext.Provider>
       </AuthProvider>
     </QueryClientProvider>
   );

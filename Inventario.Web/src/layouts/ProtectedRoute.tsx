@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useI18n } from "../app/i18n/AppI18nContext";
 import { useAuth } from "../auth/AuthContext";
 
 type ProtectedRouteProps = {
@@ -7,11 +8,12 @@ type ProtectedRouteProps = {
 };
 
 export function ProtectedRoute({ requiredRoles, children }: ProtectedRouteProps) {
+  const { t } = useI18n();
   const { isAuthenticated, isLoading, hasAnyRole } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
-    return <div style={{ padding: 24 }}>Cargando...</div>;
+    return <div style={{ padding: 24 }}>{t("Cargando...", "Loading...")}</div>;
   }
 
   if (!isAuthenticated) {

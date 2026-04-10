@@ -17,8 +17,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
-import { useSelectedInstallation } from "./useSelectedInstallation";
-import { InstallationPicker, type InstallationListItem } from "./components/InstallationPicker";
+import { useI18n } from "../../app/i18n/AppI18nContext";
 import { getInstallations, createInstallation } from "../../api/installations";
 import {
   addInstallationCredential,
@@ -28,14 +27,14 @@ import {
   updateInstallationCredential,
   type CredentialListItemDto,
 } from "../../api/installationCredentials";
+import { InstallationPicker } from "./components/InstallationPicker";
+import { useSelectedInstallation } from "./useSelectedInstallation";
 
 export function InstallationsPage() {
+  const { t } = useI18n();
   const qc = useQueryClient();
-
-  //const [selectedAbonadoMm, setSelectedAbonadoMm] = useState<string | null>(null);
   const { selectedAbonadoMm, setSelectedAbonadoMm } = useSelectedInstallation();
 
-  // Modal Crear credencial
   const [createOpen, setCreateOpen] = useState(false);
   const [cUsername, setCUsername] = useState("");
   const [cPassword, setCPassword] = useState("");
@@ -44,7 +43,6 @@ export function InstallationsPage() {
   const [cPriority, setCPriority] = useState<number>(1);
   const [cIsActive, setCIsActive] = useState(true);
 
-  // Modal Editar credencial
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<CredentialListItemDto | null>(null);
   const [eLabel, setELabel] = useState("");
@@ -54,9 +52,10 @@ export function InstallationsPage() {
   const [ePriority, setEPriority] = useState<number>(1);
   const [eIsActive, setEIsActive] = useState(true);
 
-  // Modal Eliminar credencial
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [credentialToDelete, setCredentialToDelete] = useState<CredentialListItemDto | null>(null);
+  const [credentialToDelete, setCredentialToDelete] = useState<CredentialListItemDto | null>(
+    null
+  );
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   const installationsQuery = useQuery({
@@ -68,12 +67,18 @@ export function InstallationsPage() {
     mutationFn: createInstallation,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["installations"] });
-      notifications.show({ title: "Instalación creada", message: "Instalación añadida correctamente." });
+      notifications.show({
+        title: t("Instalacion creada", "Installation created"),
+        message: t(
+          "La instalacion se ha anadido correctamente.",
+          "The installation was added successfully."
+        ),
+      });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error creando instalación",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error creando instalacion", "Error creating installation"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -113,12 +118,18 @@ export function InstallationsPage() {
       setCIsActive(true);
 
       await qc.invalidateQueries({ queryKey: ["installationCredentials", selectedAbonadoMm] });
-      notifications.show({ title: "Credencial creada", message: "La credencial se ha añadido a la instalación." });
+      notifications.show({
+        title: t("Credencial creada", "Credential created"),
+        message: t(
+          "La credencial se ha anadido a la instalacion.",
+          "The credential was added to the installation."
+        ),
+      });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error creando credencial",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error creando credencial", "Error creating credential"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -132,12 +143,15 @@ export function InstallationsPage() {
       setEditing(null);
 
       await qc.invalidateQueries({ queryKey: ["installationCredentials", selectedAbonadoMm] });
-      notifications.show({ title: "Credencial actualizada", message: "Cambios guardados." });
+      notifications.show({
+        title: t("Credencial actualizada", "Credential updated"),
+        message: t("Cambios guardados.", "Changes saved."),
+      });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error actualizando credencial",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error actualizando credencial", "Error updating credential"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -151,8 +165,8 @@ export function InstallationsPage() {
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error cargando contraseña",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error cargando contrasena", "Error loading password"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -168,14 +182,17 @@ export function InstallationsPage() {
 
       await qc.invalidateQueries({ queryKey: ["installationCredentials", selectedAbonadoMm] });
       notifications.show({
-        title: "Credencial eliminada",
-        message: "La credencial se ha eliminado correctamente.",
+        title: t("Credencial eliminada", "Credential deleted"),
+        message: t(
+          "La credencial se ha eliminado correctamente.",
+          "The credential was deleted successfully."
+        ),
       });
     },
     onError: (err: any) => {
       notifications.show({
-        title: "Error eliminando credencial",
-        message: err?.message ?? "Error desconocido",
+        title: t("Error eliminando credencial", "Error deleting credential"),
+        message: err?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -185,20 +202,20 @@ export function InstallationsPage() {
     const items = credentialsQuery.data ?? [];
     if (!items.length) return null;
 
-    return items.map((c) => (
-      <Table.Tr key={c.credentialId}>
-        <Table.Td>{c.username}</Table.Td>
-        <Table.Td>{c.label ?? "-"}</Table.Td>
-        <Table.Td>{c.scope}</Table.Td>
-        <Table.Td>{c.priority}</Table.Td>
+    return items.map((credential) => (
+      <Table.Tr key={credential.credentialId}>
+        <Table.Td>{credential.username}</Table.Td>
+        <Table.Td>{credential.label ?? "-"}</Table.Td>
+        <Table.Td>{credential.scope}</Table.Td>
+        <Table.Td>{credential.priority}</Table.Td>
         <Table.Td>
-          {c.isActive ? (
+          {credential.isActive ? (
             <Badge color="green" variant="light">
-              Activa
+              {t("Activa", "Active")}
             </Badge>
           ) : (
             <Badge color="gray" variant="light">
-              Inactiva
+              {t("Inactiva", "Inactive")}
             </Badge>
           )}
         </Table.Td>
@@ -208,33 +225,33 @@ export function InstallationsPage() {
               size="xs"
               variant="light"
               onClick={() => {
-                setEditing(c);
-                setELabel(c.label ?? "");
+                setEditing(credential);
+                setELabel(credential.label ?? "");
                 setEPassword("");
                 setEPasswordVisible(false);
-                setEScope(c.scope ?? "General");
-                setEPriority(c.priority ?? 1);
-                setEIsActive(!!c.isActive);
+                setEScope(credential.scope ?? "General");
+                setEPriority(credential.priority ?? 1);
+                setEIsActive(!!credential.isActive);
                 setEditOpen(true);
 
                 if (selectedAbonadoMm) {
                   loadCredentialSecretMutation.mutate({
                     abonadoMm: selectedAbonadoMm,
-                    credentialId: c.credentialId,
+                    credentialId: credential.credentialId,
                   });
                 }
               }}
             >
-              Editar
+              {t("Editar", "Edit")}
             </Button>
 
             <ActionIcon
               size="sm"
               variant="subtle"
               color="red"
-              aria-label="Eliminar credencial"
+              aria-label={t("Eliminar credencial", "Delete credential")}
               onClick={() => {
-                setCredentialToDelete(c);
+                setCredentialToDelete(credential);
                 setDeleteConfirmation("");
                 setDeleteOpen(true);
               }}
@@ -245,23 +262,26 @@ export function InstallationsPage() {
         </Table.Td>
       </Table.Tr>
     ));
-  }, [credentialsQuery.data, loadCredentialSecretMutation, selectedAbonadoMm]);
+  }, [credentialsQuery.data, loadCredentialSecretMutation, selectedAbonadoMm, t]);
 
   return (
     <Stack gap="md">
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" align="flex-end">
           <div>
-            <Title order={3}>Instalaciones y credenciales</Title>
-            <Text c="dimmed">Gestiona credenciales por instalación (prioridad, scope, activación).</Text>
+            <Title order={3}>
+              {t("Instalaciones y credenciales", "Installations and credentials")}
+            </Title>
+            <Text c="dimmed">
+              {t(
+                "Gestiona credenciales por instalacion: prioridad, alcance y activacion.",
+                "Manage credentials per installation: priority, scope, and activation."
+              )}
+            </Text>
           </div>
 
-          <Button
-            variant="light"
-            onClick={() => setCreateOpen(true)}
-            disabled={!selectedAbonadoMm}
-          >
-            Nueva credencial
+          <Button variant="light" onClick={() => setCreateOpen(true)} disabled={!selectedAbonadoMm}>
+            {t("Nueva credencial", "New credential")}
           </Button>
         </Group>
 
@@ -272,32 +292,39 @@ export function InstallationsPage() {
             onChange={setSelectedAbonadoMm}
             loading={installationsQuery.isLoading}
             onCreate={(input) => createInstallationMutation.mutateAsync(input)}
-            label="Instalación"
+            label={t("Instalacion", "Installation")}
           />
 
-          {!selectedAbonadoMm && (
-            <Text c="dimmed">Selecciona una instalación para ver y gestionar sus credenciales.</Text>
-          )}
+          {!selectedAbonadoMm ? (
+            <Text c="dimmed">
+              {t(
+                "Selecciona una instalacion para ver y gestionar sus credenciales.",
+                "Select an installation to view and manage its credentials."
+              )}
+            </Text>
+          ) : null}
         </Stack>
       </Card>
 
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" align="center">
-          <Title order={4}>Credenciales</Title>
+          <Title order={4}>{t("Credenciales", "Credentials")}</Title>
           <Text c="dimmed" size="sm">
-            {selectedAbonadoMm ? `Instalación: ${selectedAbonadoMm}` : "—"}
+            {selectedAbonadoMm
+              ? `${t("Instalacion", "Installation")}: ${selectedAbonadoMm}`
+              : "-"}
           </Text>
         </Group>
 
         <Table mt="md" striped highlightOnHover withTableBorder withColumnBorders>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Username</Table.Th>
-              <Table.Th>Label</Table.Th>
-              <Table.Th>Scope</Table.Th>
-              <Table.Th>Prioridad</Table.Th>
-              <Table.Th>Estado</Table.Th>
-              <Table.Th>Acciones</Table.Th>
+              <Table.Th>{t("Usuario", "Username")}</Table.Th>
+              <Table.Th>{t("Etiqueta", "Label")}</Table.Th>
+              <Table.Th>{t("Alcance", "Scope")}</Table.Th>
+              <Table.Th>{t("Prioridad", "Priority")}</Table.Th>
+              <Table.Th>{t("Estado", "Status")}</Table.Th>
+              <Table.Th>{t("Acciones", "Actions")}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -306,10 +333,13 @@ export function InstallationsPage() {
                 <Table.Td colSpan={6}>
                   <Text c="dimmed">
                     {credentialsQuery.isFetching
-                      ? "Cargando credenciales..."
+                      ? t("Cargando credenciales...", "Loading credentials...")
                       : selectedAbonadoMm
-                        ? "No hay credenciales todavía. Crea la primera."
-                        : "Selecciona una instalación."}
+                        ? t(
+                            "No hay credenciales todavia. Crea la primera.",
+                            "There are no credentials yet. Create the first one."
+                          )
+                        : t("Selecciona una instalacion.", "Select an installation.")}
                   </Text>
                 </Table.Td>
               </Table.Tr>
@@ -318,30 +348,50 @@ export function InstallationsPage() {
         </Table>
       </Card>
 
-      {/* Modal crear credencial */}
-      <Modal opened={createOpen} onClose={() => setCreateOpen(false)} title="Nueva credencial" centered>
+      <Modal
+        opened={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title={t("Nueva credencial", "New credential")}
+        centered
+      >
         <Stack>
-          <TextInput label="Username" value={cUsername} onChange={(e) => setCUsername(e.currentTarget.value)} />
           <TextInput
-            label="Password"
+            label={t("Usuario", "Username")}
+            value={cUsername}
+            onChange={(event) => setCUsername(event.currentTarget.value)}
+          />
+          <TextInput
+            label={t("Contrasena", "Password")}
             type="password"
             value={cPassword}
-            onChange={(e) => setCPassword(e.currentTarget.value)}
+            onChange={(event) => setCPassword(event.currentTarget.value)}
           />
-          <TextInput label="Label (opcional)" value={cLabel} onChange={(e) => setCLabel(e.currentTarget.value)} />
-          <TextInput label="Scope" value={cScope} onChange={(e) => setCScope(e.currentTarget.value)} />
+          <TextInput
+            label={t("Etiqueta (opcional)", "Label (optional)")}
+            value={cLabel}
+            onChange={(event) => setCLabel(event.currentTarget.value)}
+          />
+          <TextInput
+            label={t("Alcance", "Scope")}
+            value={cScope}
+            onChange={(event) => setCScope(event.currentTarget.value)}
+          />
           <NumberInput
-            label="Prioridad (1 = primero)"
+            label={t("Prioridad (1 = primero)", "Priority (1 = first)")}
             min={1}
             max={999}
             value={cPriority}
-            onChange={(v) => setCPriority(Number(v ?? 1))}
+            onChange={(value) => setCPriority(Number(value ?? 1))}
           />
-          <Switch label="Activa" checked={cIsActive} onChange={(e) => setCIsActive(e.currentTarget.checked)} />
+          <Switch
+            label={t("Activa", "Active")}
+            checked={cIsActive}
+            onChange={(event) => setCIsActive(event.currentTarget.checked)}
+          />
 
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setCreateOpen(false)}>
-              Cancelar
+              {t("Cancelar", "Cancel")}
             </Button>
             <Button
               loading={addCredentialMutation.isPending}
@@ -358,54 +408,79 @@ export function InstallationsPage() {
                 });
               }}
             >
-              Crear
+              {t("Crear", "Create")}
             </Button>
           </Group>
         </Stack>
       </Modal>
 
-      {/* Modal editar credencial */}
-      <Modal opened={editOpen} onClose={() => setEditOpen(false)} title="Editar credencial" centered>
+      <Modal
+        opened={editOpen}
+        onClose={() => setEditOpen(false)}
+        title={t("Editar credencial", "Edit credential")}
+        centered
+      >
         <Stack>
           <Text size="sm" c="dimmed">
-            {editing ? `Username: ${editing.username} (ID ${editing.credentialId})` : "—"}
+            {editing
+              ? `${t("Usuario", "Username")}: ${editing.username} (ID ${editing.credentialId})`
+              : "-"}
           </Text>
 
-          <TextInput label="Label" value={eLabel} onChange={(e) => setELabel(e.currentTarget.value)} />
           <TextInput
-            label="Password"
+            label={t("Etiqueta", "Label")}
+            value={eLabel}
+            onChange={(event) => setELabel(event.currentTarget.value)}
+          />
+          <TextInput
+            label={t("Contrasena", "Password")}
             type={ePasswordVisible ? "text" : "password"}
             value={ePassword}
-            onChange={(e) => setEPassword(e.currentTarget.value)}
-            description="Puedes sobrescribir la contraseña existente."
+            onChange={(event) => setEPassword(event.currentTarget.value)}
+            description={t(
+              "Puedes sobrescribir la contrasena existente.",
+              "You can overwrite the existing password."
+            )}
             rightSection={
               <ActionIcon
                 variant="subtle"
-                onClick={() => setEPasswordVisible((v) => !v)}
-                aria-label={ePasswordVisible ? "Ocultar contraseña" : "Mostrar contraseña"}
+                onClick={() => setEPasswordVisible((value) => !value)}
+                aria-label={
+                  ePasswordVisible
+                    ? t("Ocultar contrasena", "Hide password")
+                    : t("Mostrar contrasena", "Show password")
+                }
               >
                 {ePasswordVisible ? <IconEyeOff size={16} /> : <IconEye size={16} />}
               </ActionIcon>
             }
           />
-          {loadCredentialSecretMutation.isPending && (
+          {loadCredentialSecretMutation.isPending ? (
             <Text size="xs" c="dimmed">
-              Cargando contraseña...
+              {t("Cargando contrasena...", "Loading password...")}
             </Text>
-          )}
-          <TextInput label="Scope" value={eScope} onChange={(e) => setEScope(e.currentTarget.value)} />
+          ) : null}
+          <TextInput
+            label={t("Alcance", "Scope")}
+            value={eScope}
+            onChange={(event) => setEScope(event.currentTarget.value)}
+          />
           <NumberInput
-            label="Prioridad"
+            label={t("Prioridad", "Priority")}
             min={1}
             max={999}
             value={ePriority}
-            onChange={(v) => setEPriority(Number(v ?? 1))}
+            onChange={(value) => setEPriority(Number(value ?? 1))}
           />
-          <Switch label="Activa" checked={eIsActive} onChange={(e) => setEIsActive(e.currentTarget.checked)} />
+          <Switch
+            label={t("Activa", "Active")}
+            checked={eIsActive}
+            onChange={(event) => setEIsActive(event.currentTarget.checked)}
+          />
 
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setEditOpen(false)}>
-              Cancelar
+              {t("Cancelar", "Cancel")}
             </Button>
             <Button
               loading={updateCredentialMutation.isPending}
@@ -426,13 +501,12 @@ export function InstallationsPage() {
                 });
               }}
             >
-              Guardar
+              {t("Guardar", "Save")}
             </Button>
           </Group>
         </Stack>
       </Modal>
 
-      {/* Modal eliminar credencial */}
       <Modal
         opened={deleteOpen}
         onClose={() => {
@@ -442,31 +516,38 @@ export function InstallationsPage() {
             setDeleteConfirmation("");
           }
         }}
-        title="Eliminar credencial"
+        title={t("Eliminar credencial", "Delete credential")}
         centered
       >
         <Stack>
           <Text>
-            Se eliminará esta credencial de la instalación.
+            {t(
+              "Se eliminara esta credencial de la instalacion.",
+              "This credential will be removed from the installation."
+            )}
             <br />
-            Escribe <Text span fw={700}>delete</Text> para confirmar.
+            {t("Escribe ", "Type ")}
+            <Text span fw={700}>
+              delete
+            </Text>
+            {t(" para confirmar.", " to confirm.")}
           </Text>
 
           <Card withBorder radius="md" p="sm">
             <Text fw={600}>{credentialToDelete?.username ?? "-"}</Text>
             <Text c="dimmed" size="sm">
-              Scope: {credentialToDelete?.scope ?? "-"}
+              {t("Alcance", "Scope")}: {credentialToDelete?.scope ?? "-"}
             </Text>
             <Text c="dimmed" size="sm">
-              Prioridad: {credentialToDelete?.priority ?? "-"}
+              {t("Prioridad", "Priority")}: {credentialToDelete?.priority ?? "-"}
             </Text>
           </Card>
 
           <TextInput
-            label="Escribe delete para confirmar"
+            label={t("Escribe delete para confirmar", "Type delete to confirm")}
             placeholder="delete"
             value={deleteConfirmation}
-            onChange={(e) => setDeleteConfirmation(e.currentTarget.value)}
+            onChange={(event) => setDeleteConfirmation(event.currentTarget.value)}
             disabled={deleteCredentialMutation.isPending}
           />
 
@@ -480,7 +561,7 @@ export function InstallationsPage() {
               }}
               disabled={deleteCredentialMutation.isPending}
             >
-              Cancelar
+              {t("Cancelar", "Cancel")}
             </Button>
             <Button
               color="red"
@@ -499,7 +580,7 @@ export function InstallationsPage() {
                 });
               }}
             >
-              Eliminar credencial
+              {t("Eliminar credencial", "Delete credential")}
             </Button>
           </Group>
         </Stack>

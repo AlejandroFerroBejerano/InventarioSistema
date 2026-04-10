@@ -84,8 +84,6 @@ public class ScansController : ControllerBase
             StartedAt = DateTime.UtcNow
         };
 
-        var applyMode = NormalizeApplyMode(request.ApplyMode);
-
         // 1) DISCOVERY (TCP + SSDP)
         var hosts = await _discovery.DiscoverAsync(
             ips: ips,
@@ -234,125 +232,6 @@ public class ScansController : ControllerBase
         _db.ScanHostResults.AddRange(hostResults);
         await _db.SaveChangesAsync(ct);
 
-        // -----------------------------
-        // Persistencia: SystemAssets (UPSERT) según ApplyMode
-        // -----------------------------
-        var installation = await _db.Installations
-            .FirstOrDefaultAsync(x => x.Id == installationId.Value, ct);
-
-        if (installation is not null)
-        {
-            var now = DateTime.UtcNow;
-
-            foreach (var host in hosts)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                // ✅ Evitar ruido: no persistir NoPorts
-                if (string.Equals(host.Status, "NoPorts", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var asset = await _db.SystemAssets
-                    .FirstOrDefaultAsync(x =>
-                        x.InstallationId == installation.Id &&
-                        x.IpAddress == host.Ip, ct);
-
-                if (asset is null)
-                {
-                    asset = new SystemAsset
-                    {
-                        InstallationId = installation.Id,
-                        IpAddress = host.Ip,
-                        CreatedAt = now
-                    };
-                    _db.SystemAssets.Add(asset);
-                }
-
-                // Siempre
-                asset.LastSeenAt = now;
-                asset.OpenPortsJson = JsonSerializer.Serialize(host.OpenPorts ?? new List<int>());
-                asset.WebPort = host.WebPort ?? asset.WebPort;
-                asset.SdkPort = host.SdkPort ?? asset.SdkPort;
-
-                // Aplicación según modo
-                if (applyMode.Equals("LastWins", StringComparison.OrdinalIgnoreCase))
-                {
-                    asset.Category = string.IsNullOrWhiteSpace(host.Category) ? asset.Category : host.Category!;
-                    asset.Manufacturer = host.Manufacturer;
-                    asset.Model = host.Model;
-                    asset.Firmware = host.Firmware;
-                    asset.SerialNumber = host.SerialNumber;
-                    asset.Protocol = host.Protocol;
-                    asset.Status = host.Status;
-                }
-                else
-                {
-                    // NoDegrade (y Review por ahora lo tratamos igual)
-                    asset.Category = KeepIfUnknown(asset.Category, host.Category) ?? asset.Category ?? "Unknown";
-                    asset.Manufacturer = KeepIfBlank(asset.Manufacturer, host.Manufacturer);
-                    asset.Model = KeepIfBlank(asset.Model, host.Model);
-                    asset.Firmware = KeepIfBlank(asset.Firmware, host.Firmware);
-                    asset.SerialNumber = KeepIfBlank(asset.SerialNumber, host.SerialNumber);
-                    asset.Protocol = KeepIfBlank(asset.Protocol, host.Protocol);
-                    asset.Status = KeepBestStatus(asset.Status, host.Status);
-                }
-
-                // Guardar credencial preferida si autenticó
-                if (string.Equals(host.Status, "Authenticated", StringComparison.OrdinalIgnoreCase)
-                    && host.CredentialId.HasValue)
-                {
-                    asset.PreferredCredentialId = host.CredentialId.Value;
-                }
-            }
-
-            var dbFile = _db.Database.GetDbConnection().DataSource;
-
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine($"[SCAN] DB Path = {dbFile}");
-            Console.WriteLine($"[SCAN] AbonadoMm = '{response.AbonadoMm}'");
-            Console.ResetColor();
-
-            await _db.SaveChangesAsync(ct);
-
-            var totalAssets = await _db.SystemAssets.CountAsync(ct);
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"[SCAN] SaveChanges OK. Total SystemAssets now = {totalAssets}");
-            Console.ResetColor();
-        }
-
         return Ok(response);
     }
-
-    // -----------------------------
-    // Helpers
-    // -----------------------------
-    private static string NormalizeApplyMode(string? mode)
-    {
-        var m = (mode ?? "").Trim();
-        if (m.Equals("LastWins", StringComparison.OrdinalIgnoreCase)) return "LastWins";
-        if (m.Equals("NoDegrade", StringComparison.OrdinalIgnoreCase)) return "NoDegrade";
-        if (m.Equals("Review", StringComparison.OrdinalIgnoreCase)) return "Review";
-        return "NoDegrade";
-    }
-
-    private static int StatusRank(string? s) => (s ?? "").Trim().ToLowerInvariant() switch
-    {
-        "authenticated" => 3,
-        "identified" => 2,
-        "noports" => 1,
-        _ => 0
-    };
-
-    private static string? KeepIfBlank(string? current, string? incoming)
-        => string.IsNullOrWhiteSpace(incoming) ? current : incoming;
-
-    private static string? KeepIfUnknown(string? current, string? incoming)
-    {
-        if (string.IsNullOrWhiteSpace(incoming)) return current;
-        if (string.Equals(incoming, "Unknown", StringComparison.OrdinalIgnoreCase)) return current;
-        return incoming;
-    }
-
-    private static string? KeepBestStatus(string? current, string? incoming)
-        => StatusRank(incoming) >= StatusRank(current) ? incoming : current;
 }

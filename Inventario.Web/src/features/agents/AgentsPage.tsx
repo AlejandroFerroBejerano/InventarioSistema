@@ -24,9 +24,11 @@ import {
   IconCheck,
   IconCopy,
   IconDownload,
+  IconKey,
   IconPlayerPause,
   IconTrash,
 } from "@tabler/icons-react";
+import { useI18n } from "../../app/i18n/AppI18nContext";
 import { useSelectedInstallation } from "../installations/useSelectedInstallation";
 import { InstallationPicker } from "../installations/components/InstallationPicker";
 import { createInstallation, getInstallations } from "../../api/installations";
@@ -41,20 +43,16 @@ import {
   downloadAgentInstaller,
   getAgentJobs,
   getAgents,
+  regenerateEnrollmentToken,
   revokeAgent,
   type CreateAgentScanJobRequest,
 } from "../../api/agents";
 
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString();
-}
-
-function agentStatusBadge(agent: AgentDto) {
+function agentStatusBadge(agent: AgentDto, t: (spanish: string, english: string) => string) {
   if (agent.isRevoked) {
     return (
       <Badge color="red" variant="light">
-        Revoked
+        {t("Revocado", "Revoked")}
       </Badge>
     );
   }
@@ -62,25 +60,28 @@ function agentStatusBadge(agent: AgentDto) {
   if (agent.isOnline) {
     return (
       <Badge color="green" variant="light">
-        Online
+        {t("En linea", "Online")}
       </Badge>
     );
   }
 
   return (
     <Badge color="gray" variant="light">
-      Offline
+      {t("Fuera de linea", "Offline")}
     </Badge>
   );
 }
 
-function jobStatusBadge(status: string) {
+function jobStatusBadge(
+  status: string,
+  t: (spanish: string, english: string) => string
+) {
   const normalized = (status ?? "").toLowerCase();
 
   if (normalized === "completed") {
     return (
       <Badge color="green" variant="light">
-        Completed
+        {t("Completado", "Completed")}
       </Badge>
     );
   }
@@ -96,14 +97,14 @@ function jobStatusBadge(status: string) {
   if (normalized === "running" || normalized === "dispatched") {
     return (
       <Badge color="blue" variant="light">
-        {status}
+        {status === "Running" ? t("En ejecucion", "Running") : status === "Dispatched" ? t("Despachado", "Dispatched") : status}
       </Badge>
     );
   }
 
   return (
     <Badge color="yellow" variant="light">
-      {status}
+      {status === "Queued" ? t("En cola", "Queued") : status}
     </Badge>
   );
 }
@@ -138,6 +139,7 @@ function downloadBlobFile(filename: string, blob: Blob) {
 }
 
 export function AgentsPage() {
+  const { t, formatDateTime } = useI18n();
   const qc = useQueryClient();
   const { selectedAbonadoMm, setSelectedAbonadoMm } = useSelectedInstallation();
 
@@ -151,14 +153,14 @@ export function AgentsPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["installations"] });
       notifications.show({
-        title: "Instalacion creada",
-        message: "Ya puedes seleccionarla.",
+        title: t("Instalacion creada", "Installation created"),
+        message: t("Ya puedes seleccionarla.", "You can select it now."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error creando instalacion",
-        message: error?.message ?? "Error desconocido",
+        title: t("Error creando instalacion", "Error creating installation"),
+        message: error?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -194,7 +196,7 @@ export function AgentsPage() {
   const createAgentMutation = useMutation({
     mutationFn: () => {
       if (!installationId) {
-        throw new Error("Selecciona primero una instalacion.");
+        throw new Error(t("Selecciona primero una instalacion.", "Select an installation first."));
       }
 
       return createAgent({
@@ -209,14 +211,17 @@ export function AgentsPage() {
       setAgentCode("");
       await qc.invalidateQueries({ queryKey: ["agents", installationId] });
       notifications.show({
-        title: "Agente creado",
-        message: "Guarda los tokens, solo se muestran una vez.",
+        title: t("Agente creado", "Agent created"),
+        message: t(
+          "Guarda el token o regeneralo desde la tabla de agentes cuando lo necesites.",
+          "Save the token or regenerate it from the agents table when needed."
+        ),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error creando agente",
-        message: error?.message ?? "Error desconocido",
+        title: t("Error creando agente", "Error creating agent"),
+        message: error?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -227,14 +232,45 @@ export function AgentsPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["agents", installationId] });
       notifications.show({
-        title: "Agente revocado",
-        message: "El agente queda deshabilitado para nuevos trabajos.",
+        title: t("Agente revocado", "Agent revoked"),
+        message: t(
+          "El agente queda deshabilitado para nuevos trabajos.",
+          "The agent is disabled for new jobs."
+        ),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error revocando agente",
-        message: error?.message ?? "Error desconocido",
+        title: t("Error revocando agente", "Error revoking agent"),
+        message: error?.message ?? t("Error desconocido", "Unknown error"),
+        color: "red",
+      });
+    },
+  });
+
+  const regenerateEnrollmentTokenMutation = useMutation({
+    mutationFn: regenerateEnrollmentToken,
+    onSuccess: (response) => {
+      setCreatedAgent(response);
+      notifications.show({
+        title: t("Token regenerado", "Token regenerated"),
+        message: t(
+          "Ya puedes volver a descargar el instalador con el nuevo token.",
+          "You can download the installer again with the new token."
+        ),
+      });
+    },
+    onError: (error: any) => {
+      const status = error?.response?.status;
+      notifications.show({
+        title: t("Error regenerando token", "Error regenerating token"),
+        message:
+          status === 404
+            ? t(
+                "El endpoint no existe en la API actual. Reinicia el backend y prueba de nuevo.",
+                "The endpoint does not exist in the current API. Restart the backend and try again."
+              )
+            : error?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -279,16 +315,16 @@ export function AgentsPage() {
   const createJobMutation = useMutation({
     mutationFn: () => {
       if (!installationId) {
-        throw new Error("Selecciona primero una instalacion.");
+        throw new Error(t("Selecciona primero una instalacion.", "Select an installation first."));
       }
 
       if (!jobNetworkId) {
-        throw new Error("Selecciona una red.");
+        throw new Error(t("Selecciona una red.", "Select a network."));
       }
 
       const network = networksQuery.data?.find((n) => n.id === jobNetworkId);
       if (!network) {
-        throw new Error("Red invalida.");
+        throw new Error(t("Red invalida.", "Invalid network."));
       }
 
       const payload: CreateAgentScanJobRequest = {
@@ -312,14 +348,17 @@ export function AgentsPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["agentJobs", installationId] });
       notifications.show({
-        title: "Trabajo enviado",
-        message: "El trabajo fue creado y enviado a un agente disponible.",
+        title: t("Trabajo enviado", "Job sent"),
+        message: t(
+          "El trabajo fue creado y enviado a un agente disponible.",
+          "The job was created and sent to an available agent."
+        ),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error creando trabajo",
-        message: error?.message ?? "Error desconocido",
+        title: t("Error creando trabajo", "Error creating job"),
+        message: error?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -330,14 +369,14 @@ export function AgentsPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["agentJobs", installationId] });
       notifications.show({
-        title: "Trabajo cancelado",
-        message: "El estado quedó en cancelado.",
+        title: t("Trabajo cancelado", "Job cancelled"),
+        message: t("El estado quedo en cancelado.", "The job status is now cancelled."),
       });
     },
     onError: (error: any) => {
       notifications.show({
-        title: "Error cancelando trabajo",
-        message: error?.message ?? "Error desconocido",
+        title: t("Error cancelando trabajo", "Error cancelling job"),
+        message: error?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     },
@@ -376,8 +415,8 @@ export function AgentsPage() {
   async function copyText(value: string) {
     await navigator.clipboard.writeText(value);
     notifications.show({
-      title: "Copiado",
-      message: "Texto copiado al portapapeles.",
+      title: t("Copiado", "Copied"),
+      message: t("Texto copiado al portapapeles.", "Text copied to clipboard."),
     });
   }
 
@@ -404,13 +443,16 @@ export function AgentsPage() {
       downloadBlobFile(filename, blob);
 
       notifications.show({
-        title: "Instalador descargado",
-        message: `Paquete ${platform} descargado correctamente.`,
+        title: t("Instalador descargado", "Installer downloaded"),
+        message:
+          platform === "windows"
+            ? t("Paquete Windows descargado correctamente.", "Windows package downloaded successfully.")
+            : t("Paquete Linux descargado correctamente.", "Linux package downloaded successfully."),
       });
     } catch (error: any) {
       notifications.show({
-        title: "Error descargando instalador",
-        message: error?.message ?? "Error desconocido",
+        title: t("Error descargando instalador", "Error downloading installer"),
+        message: error?.message ?? t("Error desconocido", "Unknown error"),
         color: "red",
       });
     } finally {
@@ -423,17 +465,20 @@ export function AgentsPage() {
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" align="flex-end">
           <div>
-              <Title order={3}>Agentes remotos</Title>
-              <Text c="dimmed" size="sm">
-                Gestiona instalacion - agente - enrolamiento - trabajos de escaneo remotos.
-              </Text>
-            </div>
+            <Title order={3}>{t("Agentes remotos", "Remote agents")}</Title>
+            <Text c="dimmed" size="sm">
+              {t(
+                "Gestiona instalacion - agente - enrolamiento - trabajos de escaneo remotos.",
+                "Manage installation, agent enrollment, and remote scan jobs."
+              )}
+            </Text>
+          </div>
           <Button
             onClick={() => setCreatedAgent(null)}
             variant="light"
             disabled={!createdAgent}
           >
-            Cerrar panel de enrolamiento
+            {t("Cerrar panel de enrolamiento", "Close enrollment panel")}
           </Button>
         </Group>
 
@@ -444,18 +489,18 @@ export function AgentsPage() {
             onChange={setSelectedAbonadoMm}
             loading={installationsQuery.isLoading}
             onCreate={(input) => createInstallationMutation.mutateAsync(input)}
-            label="Instalacion"
+            label={t("Instalacion", "Installation")}
           />
 
           <Group align="flex-end" wrap="wrap">
             <TextInput
-              label="Nombre del agente"
-              placeholder="Puesto-sede-01"
+              label={t("Nombre del agente", "Agent name")}
+              placeholder={t("Puesto-sede-01", "Workstation-site-01")}
               value={agentName}
               onChange={(event) => setAgentName(event.currentTarget.value)}
             />
             <TextInput
-              label="Codigo opcional"
+              label={t("Codigo opcional", "Optional code")}
               placeholder="AG-NODE-01"
               value={agentCode}
               onChange={(event) => setAgentCode(event.currentTarget.value)}
@@ -465,7 +510,7 @@ export function AgentsPage() {
               disabled={!selectedAbonadoMm}
               onClick={() => createAgentMutation.mutate()}
             >
-              Crear agente
+              {t("Crear agente", "Create agent")}
             </Button>
           </Group>
         </Stack>
@@ -473,7 +518,7 @@ export function AgentsPage() {
 
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md">
-          <Title order={4}>Estado de agentes</Title>
+          <Title order={4}>{t("Estado de agentes", "Agent status")}</Title>
           <Text c="dimmed" size="sm">
             {selectedAbonadoMm ?? "-"}
           </Text>
@@ -483,27 +528,29 @@ export function AgentsPage() {
           <Table striped highlightOnHover withColumnBorders withTableBorder>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Codigo</Table.Th>
-                <Table.Th>Nombre</Table.Th>
-                <Table.Th>Host</Table.Th>
-                <Table.Th>Estado</Table.Th>
-                <Table.Th>Version</Table.Th>
-                <Table.Th>Ultima conexion</Table.Th>
+                <Table.Th>{t("Codigo", "Code")}</Table.Th>
+                <Table.Th>{t("Nombre", "Name")}</Table.Th>
+                <Table.Th>{t("Host", "Host")}</Table.Th>
+                <Table.Th>{t("Estado", "Status")}</Table.Th>
+                <Table.Th>{t("Version", "Version")}</Table.Th>
+                <Table.Th>{t("Ultima conexion", "Last connection")}</Table.Th>
                 <Table.Th>IP</Table.Th>
-                <Table.Th>Acciones</Table.Th>
+                <Table.Th>{t("Acciones", "Actions")}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {agentsQuery.isLoading ? (
                 <Table.Tr>
                   <Table.Td colSpan={8}>
-                    <Center>Loading...</Center>
+                    <Center>{t("Cargando...", "Loading...")}</Center>
                   </Table.Td>
                 </Table.Tr>
               ) : (agentsQuery.data ?? []).length === 0 ? (
                 <Table.Tr>
                   <Table.Td colSpan={8}>
-                    <Text c="dimmed">No hay agentes para esta instalacion.</Text>
+                    <Text c="dimmed">
+                      {t("No hay agentes para esta instalacion.", "There are no agents for this installation.")}
+                    </Text>
                   </Table.Td>
                 </Table.Tr>
               ) : (
@@ -512,20 +559,31 @@ export function AgentsPage() {
                     <Table.Td>{agent.agentCode}</Table.Td>
                     <Table.Td>{agent.friendlyName ?? "-"}</Table.Td>
                     <Table.Td>{agent.hostName ?? "-"}</Table.Td>
-                    <Table.Td>{agentStatusBadge(agent)}</Table.Td>
+                    <Table.Td>{agentStatusBadge(agent, t)}</Table.Td>
                     <Table.Td>{agent.currentVersion ?? "-"}</Table.Td>
-                    <Table.Td>{formatDate(agent.lastSeenAt)}</Table.Td>
+                    <Table.Td>{formatDateTime(agent.lastSeenAt)}</Table.Td>
                     <Table.Td>{agent.lastIpAddress ?? "-"}</Table.Td>
                     <Table.Td>
-                      <ActionIcon
-                        disabled={agent.isRevoked}
-                        color="red"
-                        variant="subtle"
-                        aria-label={`Revocar ${agent.agentCode}`}
-                        onClick={() => revokeAgentMutation.mutate(agent.id)}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
+                      <Group gap={6} wrap="nowrap">
+                        <ActionIcon
+                          disabled={agent.isRevoked || regenerateEnrollmentTokenMutation.isPending}
+                          color="yellow"
+                          variant="subtle"
+                          aria-label={`${t("Regenerar token", "Regenerate token")} ${agent.agentCode}`}
+                          onClick={() => regenerateEnrollmentTokenMutation.mutate(agent.id)}
+                        >
+                          <IconKey size={16} />
+                        </ActionIcon>
+                        <ActionIcon
+                          disabled={agent.isRevoked}
+                          color="red"
+                          variant="subtle"
+                          aria-label={`${t("Revocar", "Revoke")} ${agent.agentCode}`}
+                          onClick={() => revokeAgentMutation.mutate(agent.id)}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))
@@ -537,7 +595,7 @@ export function AgentsPage() {
 
       <Card withBorder radius="md" p="lg">
         <Group justify="space-between" mb="md">
-          <Title order={4}>Trabajos de agentes</Title>
+          <Title order={4}>{t("Trabajos de agentes", "Agent jobs")}</Title>
           <Button
             leftSection={<IconPlayerPause size={16} />}
             onClick={() => qc.invalidateQueries({ queryKey: ["agentJobs", installationId] })}
@@ -545,7 +603,7 @@ export function AgentsPage() {
             size="sm"
             variant="light"
           >
-            Refrescar
+            {t("Refrescar", "Refresh")}
           </Button>
         </Group>
 
@@ -553,17 +611,17 @@ export function AgentsPage() {
           <Stack gap="sm">
             <Group align="flex-end" wrap="wrap">
               <Select
-                label="Red"
+                label={t("Red", "Network")}
                 searchable
                 data={networkOptions}
                 value={jobNetworkIdText}
                 onChange={(value) => setJobNetworkIdText(value || "")}
                 style={{ minWidth: 280 }}
-                placeholder="Selecciona red"
+                placeholder={t("Selecciona red", "Select network")}
                 disabled={networksQuery.isLoading}
               />
               <NumberInput
-                label="Priority"
+                label={t("Prioridad", "Priority")}
                 min={1}
                 max={999}
                 value={jobPriority}
@@ -571,14 +629,14 @@ export function AgentsPage() {
                 style={{ minWidth: 120 }}
               />
               <TextInput
-                label="Puertos"
+                label={t("Puertos", "Ports")}
                 placeholder="80,443,554,1935"
                 value={jobPorts}
                 onChange={(event) => setJobPorts(event.currentTarget.value)}
                 style={{ minWidth: 200 }}
               />
               <TextInput
-                label="Protocolos"
+                label={t("Protocolos", "Protocols")}
                 placeholder="http,https"
                 value={jobProtocols}
                 onChange={(event) => setJobProtocols(event.currentTarget.value)}
@@ -596,7 +654,7 @@ export function AgentsPage() {
                 style={{ minWidth: 140 }}
               />
               <NumberInput
-                label="Concurrency"
+                label={t("Concurrencia", "Concurrency")}
                 min={1}
                 max={1000}
                 value={jobConcurrency}
@@ -612,25 +670,25 @@ export function AgentsPage() {
                 style={{ minWidth: 140 }}
               />
               <TextInput
-                label="Scope"
+                label={t("Ambito", "Scope")}
                 value={jobScope}
                 onChange={(event) => setJobScope(event.currentTarget.value)}
                 style={{ minWidth: 140 }}
               />
               <Select
-                label="Apply mode"
+                label={t("Modo de aplicacion", "Apply mode")}
                 data={[
-                  { value: "", label: "Default" },
+                  { value: "", label: t("Por defecto", "Default") },
                   { value: "NoDegrade", label: "NoDegrade" },
                   { value: "LastWins", label: "LastWins" },
-                  { value: "Review", label: "Review" },
+                  { value: "Review", label: t("Revision", "Review") },
                 ]}
                 value={jobApplyMode}
                 onChange={(value) => setJobApplyMode((value as "" | "NoDegrade" | "LastWins" | "Review") ?? "")}
                 style={{ minWidth: 160 }}
               />
               <Checkbox
-                label="Use Ssdp"
+                label={t("Usar SSDP", "Use SSDP")}
                 checked={jobUseSsdp}
                 onChange={(event) => setJobUseSsdp(event.currentTarget.checked)}
               />
@@ -639,7 +697,7 @@ export function AgentsPage() {
                 disabled={installationId == null || !jobNetworkId}
                 onClick={() => createJobMutation.mutate()}
               >
-                Crear trabajo
+                {t("Crear trabajo", "Create job")}
               </Button>
             </Group>
           </Stack>
@@ -647,18 +705,18 @@ export function AgentsPage() {
 
         <Card withBorder radius="md" p="md" mt="md">
           <Group justify="space-between" mb="sm">
-            <Title order={5}>Cola de trabajos</Title>
+            <Title order={5}>{t("Cola de trabajos", "Job queue")}</Title>
             <Select
-              label="Filtrar estado"
+              label={t("Filtrar estado", "Filter by status")}
               value={jobStatusFilter}
               data={[
-                { value: "all", label: "Todos" },
-                { value: "Queued", label: "Queued" },
-                { value: "Dispatched", label: "Dispatched" },
-                { value: "Running", label: "Running" },
-                { value: "Completed", label: "Completed" },
-                { value: "Failed", label: "Failed" },
-                { value: "Cancelled", label: "Cancelled" },
+                { value: "all", label: t("Todos", "All") },
+                { value: "Queued", label: t("En cola", "Queued") },
+                { value: "Dispatched", label: t("Despachado", "Dispatched") },
+                { value: "Running", label: t("En ejecucion", "Running") },
+                { value: "Completed", label: t("Completado", "Completed") },
+                { value: "Failed", label: t("Fallido", "Failed") },
+                { value: "Cancelled", label: t("Cancelado", "Cancelled") },
               ]}
               onChange={(value) => setJobStatusFilter(value ?? "all")}
             />
@@ -669,50 +727,52 @@ export function AgentsPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Id</Table.Th>
-                  <Table.Th>Tipo</Table.Th>
-                  <Table.Th>Estatus</Table.Th>
-                  <Table.Th>Network</Table.Th>
-                  <Table.Th>AgentId</Table.Th>
-                  <Table.Th>Progress</Table.Th>
-                  <Table.Th>Inicio</Table.Th>
-                  <Table.Th>Ultima act.</Table.Th>
-                  <Table.Th>Acciones</Table.Th>
+                  <Table.Th>{t("Tipo", "Type")}</Table.Th>
+                  <Table.Th>{t("Estado", "Status")}</Table.Th>
+                  <Table.Th>{t("Red", "Network")}</Table.Th>
+                  <Table.Th>{t("Agente", "Agent")}</Table.Th>
+                  <Table.Th>{t("Progreso", "Progress")}</Table.Th>
+                  <Table.Th>{t("Inicio", "Started")}</Table.Th>
+                  <Table.Th>{t("Ultima act.", "Last update")}</Table.Th>
+                  <Table.Th>{t("Acciones", "Actions")}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {jobsQuery.isLoading ? (
                   <Table.Tr>
-                        <Table.Td colSpan={9}>
-                        <Center>Loading...</Center>
-                      </Table.Td>
+                    <Table.Td colSpan={9}>
+                      <Center>{t("Cargando...", "Loading...")}</Center>
+                    </Table.Td>
                   </Table.Tr>
                 ) : filteredJobs.length === 0 ? (
                   <Table.Tr>
                     <Table.Td colSpan={9}>
                       <Text c="dimmed">
-                        {installationId == null ? "Selecciona instalacion" : "Sin trabajos pendientes."}
+                        {installationId == null
+                          ? t("Selecciona instalacion", "Select an installation")
+                          : t("Sin trabajos pendientes.", "There are no pending jobs.")}
                       </Text>
                     </Table.Td>
                   </Table.Tr>
                 ) : (
-                      filteredJobs.map((job: AgentJobDto) => {
+                  filteredJobs.map((job: AgentJobDto) => {
                     const terminal = terminalJobStatuses.has(job.status);
                     return (
                       <Table.Tr key={job.id}>
                         <Table.Td>{job.id}</Table.Td>
                         <Table.Td>{job.jobType}</Table.Td>
-                        <Table.Td>{jobStatusBadge(job.status)}</Table.Td>
+                        <Table.Td>{jobStatusBadge(job.status, t)}</Table.Td>
                         <Table.Td>{job.targetNetworkCidr}</Table.Td>
                         <Table.Td>{job.assignedAgentId ?? "-"}</Table.Td>
                         <Table.Td>{`${job.progressPercent}%`}</Table.Td>
-                        <Table.Td>{formatDate(job.startedAt)}</Table.Td>
+                        <Table.Td>{formatDateTime(job.startedAt)}</Table.Td>
                         <Table.Td>{job.lastProgressMessage ?? "-"}</Table.Td>
                         <Table.Td>
                           <ActionIcon
                             disabled={terminal || cancelJobMutation.isPending}
                             color="red"
                             variant="subtle"
-                            aria-label={`Cancelar trabajo ${job.id}`}
+                            aria-label={`${t("Cancelar trabajo", "Cancel job")} ${job.id}`}
                             onClick={() => cancelJobMutation.mutate(job.id)}
                           >
                             <IconTrash size={16} />
@@ -731,26 +791,26 @@ export function AgentsPage() {
       <Modal
         opened={createdAgent != null}
         onClose={() => setCreatedAgent(null)}
-        title="Credenciales de enrolamiento del agente"
+        title={t("Credenciales de enrolamiento del agente", "Agent enrollment credentials")}
       >
         <Stack gap="sm">
           {createdAgent ? (
             <>
               <Text size="sm">
-                AgentId: <strong>{createdAgent.agentId}</strong>
+                {t("Id del agente", "Agent ID")}: <strong>{createdAgent.agentId}</strong>
               </Text>
               <Text size="sm">
-                AgentCode: <strong>{createdAgent.agentCode}</strong>
+                {t("Codigo del agente", "Agent code")}: <strong>{createdAgent.agentCode}</strong>
               </Text>
-              <TextInput label="Enrollment Token" value={createdAgent.enrollmentToken} readOnly />
+              <TextInput label={t("Token de enrolamiento", "Enrollment token")} value={createdAgent.enrollmentToken} readOnly />
               <TextInput
-                label="Hub URL"
+                label={t("URL del hub", "Hub URL")}
                 value={createdAgent.hubUrl}
                 readOnly
-                description="Usa este URL para que el agente se conecte."
+                description={t("Usa este URL para que el agente se conecte.", "Use this URL so the agent can connect.")}
               />
               <Textarea
-                label="Snippet de enrolamiento"
+                label={t("Snippet de enrolamiento", "Enrollment snippet")}
                 value={enrollmentSnippet}
                 readOnly
                 minRows={3}
@@ -762,14 +822,14 @@ export function AgentsPage() {
                   leftSection={<IconCopy size={16} />}
                   onClick={() => copyText(createdAgent.enrollmentToken)}
                 >
-                  Copiar token
+                  {t("Copiar token", "Copy token")}
                 </Button>
                 <Button
                   variant="subtle"
                   leftSection={<IconCopy size={16} />}
                   onClick={() => copyText(enrollmentSnippet)}
                 >
-                  Copiar snippet
+                  {t("Copiar snippet", "Copy snippet")}
                 </Button>
               </Group>
               <Group gap="xs" mt="xs">
@@ -782,7 +842,7 @@ export function AgentsPage() {
                   }
                   variant="default"
                 >
-                  Copiar URL instalador (Windows)
+                  {t("Copiar URL instalador (Windows)", "Copy installer URL (Windows)")}
                 </Button>
                 <Button
                   leftSection={<IconCopy size={16} />}
@@ -793,7 +853,7 @@ export function AgentsPage() {
                   }
                   variant="default"
                 >
-                  Copiar URL instalador (Linux)
+                  {t("Copiar URL instalador (Linux)", "Copy installer URL (Linux)")}
                 </Button>
                 <Button
                   leftSection={<IconDownload size={16} />}
@@ -801,7 +861,7 @@ export function AgentsPage() {
                   onClick={() => downloadInstaller("windows")}
                   variant="default"
                 >
-                  Descargar instalador (Windows)
+                  {t("Descargar instalador (Windows)", "Download installer (Windows)")}
                 </Button>
                 <Button
                   leftSection={<IconDownload size={16} />}
@@ -809,14 +869,17 @@ export function AgentsPage() {
                   onClick={() => downloadInstaller("linux")}
                   variant="default"
                 >
-                  Descargar instalador (Linux)
+                  {t("Descargar instalador (Linux)", "Download installer (Linux)")}
                 </Button>
                 <Button leftSection={<IconCheck size={16} />} variant="default">
-                  Ok
+                  OK
                 </Button>
               </Group>
               <Text size="xs" c="dimmed">
-                El endpoint de instalador ya está activo y genera paquetes con script de enrolamiento para Windows y Linux.
+                {t(
+                  "El endpoint de instalador ya esta activo y genera paquetes con script de enrolamiento para Windows y Linux.",
+                  "The installer endpoint is already active and generates packages with enrollment scripts for Windows and Linux."
+                )}
               </Text>
             </> 
           ) : null}

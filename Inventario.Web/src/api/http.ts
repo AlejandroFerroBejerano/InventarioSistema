@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 
 export const http = axios.create({
   baseURL: "", // usamos el proxy de Vite (/api -> http://localhost:5048)
@@ -18,10 +18,11 @@ export const clearAuthToken = () => {
 http.interceptors.request.use((config) => {
   const token = currentAccessToken;
   if (token) {
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${token}`,
-    };
+    const headers = config.headers instanceof AxiosHeaders
+      ? config.headers
+      : new AxiosHeaders(config.headers);
+    headers.set("Authorization", `Bearer ${token}`);
+    config.headers = headers;
   }
 
   return config;

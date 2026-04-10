@@ -11,15 +11,19 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useI18n } from "../../app/i18n/AppI18nContext";
 import { useAuth } from "../../auth/AuthContext";
 
 const defaultFrom = "/scan";
 
 export function LoginPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const { login, verifyMfa, isAuthenticated } = useAuth();
-  const from = (location.state as { from?: { pathname: string } } | undefined)?.from?.pathname ?? defaultFrom;
+  const from =
+    (location.state as { from?: { pathname: string } } | undefined)?.from?.pathname ??
+    defaultFrom;
 
   const [email, setEmail] = useState("admin@inventario.local");
   const [password, setPassword] = useState("ChangeMe!12345");
@@ -41,10 +45,14 @@ export function LoginPage() {
       if (response.requiresMfa && response.mfaChallengeToken) {
         setMfaToken(response.mfaChallengeToken);
         setStep("mfa");
-        setMessage(response.message || "Se requiere codigo MFA para continuar");
+        setMessage(
+          response.message || t("Se requiere codigo MFA para continuar", "MFA code is required to continue")
+        );
         notifications.show({
-          title: "MFA requerido",
-          message: response.message || "Introduce el código de autenticación.",
+          title: t("MFA requerido", "MFA required"),
+          message:
+            response.message ||
+            t("Introduce el codigo de autenticacion.", "Enter your authentication code."),
           color: "blue",
         });
         return;
@@ -52,15 +60,15 @@ export function LoginPage() {
 
       if (!response.requiresMfa && response.accessToken) {
         notifications.show({
-          title: "Sesión iniciada",
-          message: "Bienvenido",
+          title: t("Sesion iniciada", "Signed in"),
+          message: t("Bienvenido", "Welcome"),
         });
         navigate(from, { replace: true });
       }
     } catch (error: any) {
       notifications.show({
-        title: "No se pudo iniciar sesión",
-        message: error?.message ?? "Credenciales inválidas.",
+        title: t("No se pudo iniciar sesion", "Could not sign in"),
+        message: error?.message ?? t("Credenciales invalidas.", "Invalid credentials."),
         color: "red",
       });
     } finally {
@@ -71,8 +79,11 @@ export function LoginPage() {
   async function submitMfa() {
     if (!mfaToken) {
       notifications.show({
-        title: "Sin sesión pendiente",
-        message: "Vuelve a iniciar sesión con usuario y contraseña.",
+        title: t("Sin sesion pendiente", "No pending session"),
+        message: t(
+          "Vuelve a iniciar sesion con usuario y contrasena.",
+          "Sign in again with your username and password."
+        ),
         color: "red",
       });
       return;
@@ -82,14 +93,14 @@ export function LoginPage() {
     try {
       await verifyMfa(mfaToken, mfaCode, useRecoveryCode);
       notifications.show({
-        title: "Sesión iniciada",
-        message: "Bienvenido",
+        title: t("Sesion iniciada", "Signed in"),
+        message: t("Bienvenido", "Welcome"),
       });
       navigate(from, { replace: true });
     } catch (error: any) {
       notifications.show({
-        title: "No se pudo verificar MFA",
-        message: error?.message ?? "Código inválido o expirado.",
+        title: t("No se pudo verificar MFA", "Could not verify MFA"),
+        message: error?.message ?? t("Codigo invalido o expirado.", "Invalid or expired code."),
         color: "red",
       });
     } finally {
@@ -110,9 +121,9 @@ export function LoginPage() {
         <Stack gap="md">
           {step === "credentials" ? (
             <>
-              <Title order={3}>Inicio de sesión</Title>
+              <Title order={3}>{t("Inicio de sesion", "Sign in")}</Title>
               <Text size="sm" c="dimmed">
-                Plataforma Inventario de Activos
+                {t("Plataforma Inventario de Activos", "Asset Inventory Platform")}
               </Text>
               <TextInput
                 label="Email"
@@ -121,35 +132,35 @@ export function LoginPage() {
                 autoComplete="username"
               />
               <PasswordInput
-                label="Password"
+                label={t("Contrasena", "Password")}
                 value={password}
                 onChange={(event) => setPassword(event.currentTarget.value)}
                 autoComplete="current-password"
               />
               <Button loading={busy} onClick={submitCredentials}>
-                Entrar
+                {t("Entrar", "Sign in")}
               </Button>
             </>
           ) : (
             <>
-              <Title order={3}>Verificación MFA</Title>
+              <Title order={3}>{t("Verificacion MFA", "MFA verification")}</Title>
               <Text size="sm" c="dimmed">
                 {message}
               </Text>
               <TextInput
-                label="Código"
+                label={t("Codigo", "Code")}
                 value={mfaCode}
                 onChange={(event) => setMfaCode(event.currentTarget.value)}
                 autoComplete="one-time-code"
                 placeholder={useRecoveryCode ? "XXXXXX" : "123456"}
               />
               <Checkbox
-                label="Usar código de recuperación"
+                label={t("Usar codigo de recuperacion", "Use recovery code")}
                 checked={useRecoveryCode}
                 onChange={(event) => setUseRecoveryCode(event.currentTarget.checked)}
               />
               <Button loading={busy} onClick={submitMfa}>
-                Verificar y entrar
+                {t("Verificar y entrar", "Verify and sign in")}
               </Button>
               <Button
                 variant="subtle"
@@ -160,7 +171,7 @@ export function LoginPage() {
                   setMessage("");
                 }}
               >
-                Volver
+                {t("Volver", "Back")}
               </Button>
             </>
           )}
